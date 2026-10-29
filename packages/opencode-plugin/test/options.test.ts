@@ -32,3 +32,20 @@ describe("parseOptions", () => {
     expect(() => parseOptions("x")).toThrow("tony options must be an object")
   })
 })
+
+describe("phase 2 options", () => {
+  test("phase 2 defaults", () => {
+    expect(DEFAULTS.gate.maxRounds).toBe(3)
+    expect(DEFAULTS.gate.judge).toBe(false)
+    expect(DEFAULTS.editGuard.enabled).toBe(true)
+    expect(DEFAULTS.diagnostics.checkers[0]!.extensions).toContain(".ts")
+  })
+
+  test("rejects zero rounds", () => {
+    expect(() => parseOptions({ gate: { maxRounds: 0 } })).toThrow("maxRounds must be >= 1")
+  })
+
+  test("rejects non-array checks", () => {
+    expect(() => parseOptions({ gate: { checks: "npm test" } })).toThrow("gate.checks must be an array of strings")
+  })
+})
