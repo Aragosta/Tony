@@ -19,6 +19,8 @@ What Tony adds to plain opencode:
 - **Local context sync.** Local models are capped at a 128k window, so compaction starts before the server truncates the prompt.
 
 ## Install (Windows and macOS)
+> **Until `@aragosta/tony` is published on npm**, use [Quick setup from source](#quick-setup-from-source-before-the-npm-release-or-to-develop), one command.
+
 **1. Install opencode 2.2.1.** This needs [Node.js](https://nodejs.org) 18 or newer.
 ```bash
 npm i -g @opencode/cli@2.2.1
@@ -106,12 +108,25 @@ Pick a model whose `ollama show` lists the `tools` capability.
 
 **Memory.** The KV cache grows linearly with context. A `q8_0` cache uses about half the memory of `f16`, and needs flash attention.
 
-## Run from source
-For development, or to try unreleased changes:
+## Quick setup from source (before the npm release, or to develop)
+This needs [Node.js](https://nodejs.org) 18+, [Bun](https://bun.sh) and git. On macOS: `brew install node git`, then `curl -fsSL https://bun.sh/install | bash`.
 ```bash
-git clone https://github.com/Aragosta/Tony && cd Tony && bun install
+git clone https://github.com/Aragosta/Tony ~/Tony && cd ~/Tony && bun run setup
 ```
-Then point the config at your checkout with an absolute path, for example `"package": "/Users/you/Tony/packages/opencode-plugin"` or `"package": "C:\\Users\\you\\Tony\\packages\\opencode-plugin"`.
+Setup does five things:
+1. Installs opencode 2.2.1 if you don't have it.
+2. Adds Tony from this clone to your global opencode config. Your existing config is backed up first (`opencode.json.bak-<time>`), and your own settings and plugins are kept.
+3. Adds the recommended defaults where you haven't set your own.
+4. Runs a one-minute self-test: real opencode and Tony, with a scripted model.
+5. Prints what to run next.
+
+Options:
+- `--model llamacpp` or `--model ollama:<model>` (for example `ollama:qwen3-coder:30b`) also adds your local model.
+- `--npm` uses the published `@aragosta/tony` instead of the clone.
+- `--dry-run` shows the config without writing it.
+- `--no-test` skips the self-test.
+
+To update a from-source install: `git pull && bun install`.
 
 ## Eval
 The eval needs [Bun](https://bun.sh) and bash. On Windows, use Git Bash.

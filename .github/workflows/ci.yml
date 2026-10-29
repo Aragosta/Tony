@@ -22,14 +22,20 @@ jobs:
           node-version: 22
       - run: bun install --frozen-lockfile
       - run: bun run typecheck
-      - name: Plugin unit tests
-        run: bun test packages/opencode-plugin
+      - name: Plugin and setup unit tests
+        run: bun test packages/opencode-plugin packages/setup
       # The eval drives opencode through bash scripts; on Windows that is Git Bash.
       - name: Eval unit tests
         if: runner.os != 'Windows'
         run: bun test packages/eval/test/events.test.ts packages/eval/test/report.test.ts packages/eval/test/tasks.test.ts packages/eval/test/run.test.ts
-      - name: Install opencode 2.2.1
-        run: npm i -g @opencode/cli@2.2.1
+      # The same one-command setup users run: installs opencode 2.2.1 and writes the config (to a temp dir here).
+      - name: Setup (bun run setup)
+        env:
+          OPENCODE_CONFIG_DIR: ${{ runner.temp }}/opencode-config
+        run: bun run setup --no-test
+      - name: Setup wrote a config that loads Tony
+        shell: bash
+        run: grep -q 'packages.*opencode-plugin' "$RUNNER_TEMP/opencode-config/opencode.json"
       - name: Integration (real opencode + scripted model)
         shell: bash
         env:

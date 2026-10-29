@@ -2,8 +2,11 @@
   "name": "tony",
   "private": true,
   "type": "module",
-  "workspaces": ["packages/*"],
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
+    "setup": "bun packages/setup/src/cli.ts",
     "test": "bun test",
     "typecheck": "bun run --filter '*' typecheck"
   }
