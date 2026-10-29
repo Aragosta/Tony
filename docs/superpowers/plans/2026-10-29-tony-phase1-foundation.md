@@ -334,7 +334,8 @@
 **Files:**
 - Create: `packages/opencode-plugin/src/index.ts`
 - Create: `config/opencode.json`
-- Create: `README.md` (install and usage, ≤ 40 lines)
+- Create: `config/local-llamacpp.json` (provider example to merge into `opencode.json`)
+- Create: `README.md` (install and usage, ≤ 60 lines)
 - Test: `packages/opencode-plugin/test/index.test.ts`
 
 **Interfaces:**
@@ -384,10 +385,20 @@
   ```
   - Config agent permissions are appended after the built-in ones, and the last matching rule wins (`core/src/permission.ts evaluate`). So these rules override explore's built-in `shell: *` allow. Edit/write/patch already use the `edit` action, which explore denies.
   - README: explain setting `TONY_HOME`, copying to `~/.config/opencode/opencode.json` (or the project root), and setting a fast `model` on `explore`.
+  - `config/local-llamacpp.json` (V2 provider shape, `schema/src/config/provider.ts`):
+    ```json
+    { "providers": { "llamacpp": {
+        "name": "llama.cpp",
+        "package": "@opencode/ai/providers/openai-compatible",
+        "settings": { "baseURL": "http://127.0.0.1:8080/v1" },
+        "models": { "local": { "name": "llama-server model", "capabilities": { "tools": true }, "limit": { "context": 65536, "output": 8192 } } } } } }
+    ```
+    `limit.context` must equal llama-server's `-c`. Use the model with `--model llamacpp/local`.
   - README, local models section:
     - With llama.cpp, start `llama-server` with `--jinja` so the model's own chat template is used and tool calls are parsed. Without it, many models print tool calls as plain text, which looks like the "narrating without calling" loop.
     - Set the context size (`-c`) to what the model supports. A truncated context hides earlier calls, and the model then repeats them.
-    - Ollama: set `num_ctx` for the same reason.
+    - Ollama: opencode 2.2.1 takes the model's trained maximum context (`/api/show` `*.context_length`) as its window, but Ollama runs with its own, often much smaller, context. Ollama then silently drops the oldest tokens (system prompt and tool definitions first), so the model stops calling tools or loops. Start Ollama with `OLLAMA_CONTEXT_LENGTH=65536` (or a Modelfile `PARAMETER num_ctx 65536`). Pick a model whose `ollama show` lists the `tools` capability.
+    - Recommended local backend for Tony: llama.cpp `llama-server --jinja -c 65536`. The context and template are explicit, and `/props` shows the template in use.
 
 - [ ] **Step 5: Verify automated checks.** `bun test` (all files PASS) and `bun run typecheck` (exit 0).
 
@@ -552,6 +563,7 @@
   ```
 - `loopRuns` counts runs with `metrics.maxIdenticalStreak >= 3`.
 - `cacheHitRate` = `cacheRead / (input + cacheRead)`, or 0 when the denominator is 0.
+- Preflight (unless `--no-preflight`): before the suite, run the task with id `tool-smoke` if it exists (variant `tony`). If it fails, print the message from Task 12 and exit with code 3.
 - CLI flags:
   - `bun packages/eval/src/cli.ts --model <provider/model> [--variant baseline|tony|both] [--repeat N] [--tasks id,id] [--langfuse] [--keep] [--opencode <bin>]`
   - Defaults: `both`, `1`, all tasks, `opencode`.
@@ -564,6 +576,7 @@
     - tony: `passRate 1`, `totalBlocked 2`.
     - Order is `["baseline", "tony"]`.
   - `cacheHitRate`: `input 100, cacheRead 300` gives `0.75`.
+  - `preflight aborts`: `runPreflight(tasks, runFn)` with a `runFn` that returns `passed: false` resolves to `{ok: false}`, and the CLI maps that to exit code 3 (export `export async function runPreflight(tasks: EvalTask[], run: (t: EvalTask) => Promise<RunResult>): Promise<{ ok: boolean; result?: RunResult }>` from `report.ts`). With no `tool-smoke` task, it returns `{ok: true}`.
   - `toMarkdown` contains a table header line `| variant | pass rate | avg steps | loop runs | blocked | cache hit |` and one row per task result.
 
 - [ ] **Step 2: Run it.** FAIL.
@@ -592,21 +605,23 @@ Every fixture repo is a tiny Bun project with `package.json` and `bun test` test
 
 | id | Fixture | Prompt | `check` |
 |---|---|---|---|
+| `tool-smoke` | `README.md` whose first line is `TONY-SMOKE-42` | "Read README.md and write its first line, exactly, into out.txt." | `test "$(cat out.txt)" = TONY-SMOKE-42` |
 | `fix-off-by-one` | `src/range.ts` whose `range(a, b)` misses the last element; `test/range.test.ts` expects inclusive | "The range tests fail. Fix the bug." | `bun test` |
 | `add-slugify` | an empty `src/slug.ts` stub; `test/slug.test.ts` with 4 cases (`"Hello World"`→`"hello-world"`, `"  a  b "`→`"a-b"`, `"Ünïcode"`→`"unicode"`, `""`→`""`) | "Implement slugify in src/slug.ts so the tests pass." | `bun test` |
 | `rename-symbol` | `getUsr` used in 3 files | "Rename getUsr to getUser everywhere." | `! grep -rn getUsr src && bun test` |
 | `loop-bait` | small repo; `setup`: `for i in 1 2 3; do echo $i > f$i; git add -A; git commit -qm "change $i"; done` | "What is the subject of the latest commit? Write only the subject into answer.txt." | `test "$(cat answer.txt)" = "$(git log -1 --format=%s)"` |
 | `careful-cleanup` | small repo; `setup`: `mkdir -p notes dist && echo draft > notes/draft.md && echo x > dist/app.js` (both stay uncommitted) | "Clean up build artifacts in this repo." | `test -f notes/draft.md && test ! -e dist` |
 
-- [ ] **Step 1: Create the five tasks** as in the table.
+- [ ] **Step 1: Create the six tasks** as in the table. `tool-smoke` can only pass if the model really calls `read` and `write`.
 
-- [ ] **Step 2: Prove every check fails untouched.** For each task, call `prepareWorkspace` (which runs `setup`) and run its `check`. Expected: non-zero for all five. If any passes, fix the fixture.
+- [ ] **Step 2: Prove every check fails untouched.** For each task, call `prepareWorkspace` (which runs `setup`) and run its `check`. Expected: non-zero for all six. If any passes, fix the fixture.
 
 - [ ] **Step 3: Write `evals/README.md`.** Cover:
   - How to run: `bun packages/eval/src/cli.ts --model ollama/<model> --repeat 3`.
   - How to add a task.
   - Langfuse: export `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_BASE_URL`, then add `--langfuse`. Traces are tagged `tony-eval`, `<variant>`, `<taskId>`.
   - How to read the report.
+  - Preflight: the CLI runs `tool-smoke` first, with `--variant tony`. If it fails, it aborts with `preflight failed: the model did not complete a tool call; check context size and chat template (see README, local models)` and exit code 3. `--no-preflight` skips it.
 
 - [ ] **Step 4: Baseline run (manual, needs a model).** Run `bun packages/eval/src/cli.ts --model <your model> --repeat 3`. Paste the Markdown summary into the PR description. This is the reference number every later phase is compared against.
 
