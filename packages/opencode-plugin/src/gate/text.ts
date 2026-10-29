@@ -1,5 +1,5 @@
 // Tony's own wording for the completion gate's nudges.
-import type { Failure } from "./evidence.ts"
+import type { Failure, RefusedEdit } from "./evidence.ts"
 
 const OUTPUT_CHARS = 3000
 
@@ -11,6 +11,9 @@ export const checksSection = (command: string, output: string) =>
 
 export const failureSection = (f: Failure) =>
   `Your last \`${f.tool}\` call failed and nothing changed after it:\n<failure>\n${f.summary}\n</failure>\nFix it, or explain in your answer why it is expected or can't be fixed.`
+
+export const refusedSection = (edits: readonly RefusedEdit[]) =>
+  `These edits were refused and never made:\n${edits.map((e) => `- ${e.path}: ${e.message}`).join("\n")}\nRead each file and redo the edit, or say in your answer that it was not made.`
 
 export const tamperSection = (findings: readonly string[]) =>
   `You changed existing tests:\n${findings.map((f) => "- " + f).join("\n")}\nIf the user did not ask for this, restore them and fix the code instead. If it was intended, say so in your answer.`

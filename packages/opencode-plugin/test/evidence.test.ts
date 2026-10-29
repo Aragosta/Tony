@@ -92,7 +92,7 @@ test("beginTurn resets", async () => {
   t.after(done("edit", { path: "a.ts" }), dir)
   t.beginTurn("s")
   const e = await t.evidence("s", dir)
-  expect(e).toEqual({ changedFiles: [], changeSeq: 0, openTodos: [], testTampering: [], passedChecks: [] })
+  expect(e).toEqual({ changedFiles: [], changeSeq: 0, openTodos: [], testTampering: [], passedChecks: [], refusedEdits: [] })
 })
 
 test("shell-changed test files are compared with git HEAD", async () => {
@@ -128,26 +128,65 @@ test("lookup tool errors are exploration", async () => {
   expect((await t.evidence("s", dir)).lastFailure).toBeUndefined()
 })
 
-test("a refused edit that is never redone counts", async () => {
+// opencode fires no after-hook for a refused call; the guard reports it directly.
+const refuse = (t: EvidenceTracker, dir: string, path: string) =>
+  t.refused({ tool: "write", sessionID: "s", input: { path } }, `Edit refused: read ${path} before editing it`, dir)
+
+test("a refused edit stays open until that file is changed", async () => {
   const { t, dir } = setup()
-  // opencode fires no after-hook for a refused call; the guard reports it directly.
-  t.refused({ tool: "write", sessionID: "s", input: { path: "test/a.test.ts" } }, "Edit refused: read test/a.test.ts before editing it")
-  expect((await t.evidence("s", dir)).lastFailure?.tool).toBe("write")
-  t.after(done("write", { path: "test/a.test.ts" }), dir)
-  expect((await t.evidence("s", dir)).lastFailure).toBeUndefined()
+  refuse(t, dir, "test/a.test.ts")
+  expect((await t.evidence("s", dir)).refusedEdits).toEqual([{ path: "test/a.test.ts", message: "Edit refused: read test/a.test.ts before editing it" }])
+  // An edit to another file does not resolve it.
+  t.after(done("write", { path: "src/a.ts" }), dir)
+  expect((await t.evidence("s", dir)).refusedEdits).toHaveLength(1)
+  t.after(done("write", { path: join(dir, "test/a.test.ts") }), dir)
+  expect((await t.evidence("s", dir)).refusedEdits).toEqual([])
 })
 
-test("passing checks after the last change are recorded", async () => {
+const pass = (command: string, extra: Record<string, unknown> = {}) => done("shell", { command, ...extra }, { metadata: { exit: 0 } })
+
+test("a passing check is recorded when it is the latest action", async () => {
   const { t, dir } = setup()
-  t.after(done("shell", { command: "bun test" }, { metadata: { exit: 0 } }), dir)
+  t.after(pass("bun test"), dir)
   t.after(done("edit", { path: "a.ts" }), dir)
   expect((await t.evidence("s", dir)).passedChecks).toEqual([])
-  t.after(done("shell", { command: "bun  test" }, { metadata: { exit: 0 } }), dir)
-  t.after(done("shell", { command: "bun run lint" }, { metadata: { exit: 1 } }), dir)
-  t.after(done("shell", { command: "ls" }, { metadata: { exit: 0 } }), dir)
+  t.after(pass("bun  test"), dir)
+  // Lookups don't change files.
+  t.after(done("read", { path: "a.ts" }), dir)
+  t.after(done("grep", { pattern: "x" }), dir)
   expect((await t.evidence("s", dir)).passedChecks).toEqual(["bun test"])
   t.addSnapshotFiles("s", ["b.ts"])
   expect((await t.evidence("s", dir)).passedChecks).toEqual([])
+})
+
+test("any later shell command drops the pass", async () => {
+  const { t, dir } = setup()
+  t.after(pass("bun test"), dir)
+  t.after(pass("printf 'broken' > src/a.ts"), dir)
+  expect((await t.evidence("s", dir)).passedChecks).toEqual([])
+  t.after(pass("bun test"), dir)
+  t.after(done("shell", { command: "bun run lint" }, { metadata: { exit: 1 } }), dir)
+  expect((await t.evidence("s", dir)).passedChecks).toEqual([])
+  t.after(pass("bun test"), dir)
+  t.after(done("subagent", { prompt: "fix it" }), dir)
+  expect((await t.evidence("s", dir)).passedChecks).toEqual([])
+})
+
+test("passes elsewhere, in the background or in compound commands don't count", async () => {
+  const { t, dir } = setup()
+  for (const call of [
+    pass("bun test", { workdir: "sub" }),
+    pass("bun test", { background: true }),
+    pass("cd sub && bun test"),
+    pass("bun test 2>&1 | tail -5"),
+    pass("bun test > out.txt"),
+    pass("bun test; true"),
+  ]) {
+    t.after(call, dir)
+    expect((await t.evidence("s", dir)).passedChecks).toEqual([])
+  }
+  t.after(pass("bun test", { workdir: dir }), dir)
+  expect((await t.evidence("s", dir)).passedChecks).toEqual(["bun test"])
 })
 
 test("check commands normalize", () => {

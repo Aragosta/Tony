@@ -5,9 +5,9 @@ Scope: everything on the branch up to `a3f58d3`. That covers loop guard, prompt,
 ## Test results
 | Suite | Before review | After |
 |---|---|---|
-| Unit (`bun test`) | 155 pass, 6 opt-in skips | 166 pass, 8 opt-in skips |
+| Unit (`bun test`) | 155 pass, 6 opt-in skips | 170 pass, 11 opt-in skips |
 | Typecheck (both packages) | clean | clean |
-| Integration, real opencode 2.2.1 + scripted model (`TONY_INTEGRATION=1`) | 6/6 | 8/8 |
+| Integration, real opencode 2.2.1 + scripted model (`TONY_INTEGRATION=1`) | 6/6 | 11/11 |
 
 Scripted A/B (`bun packages/eval/test/integration/ab.ts`): the same careless-but-correctable scripted model, with and without Tony.
 
@@ -26,29 +26,34 @@ Totals after the fixes: plain opencode passes 1/5 with 4 false dones; Tony passe
 ## Bug found: the gate missed edit-guard refusals
 - **Symptom.** In "half done", the model writes `test/cli.test.ts` without reading it first. The edit guard refuses the write, the model says "README and test updated", the old tests still pass, and the gate records **`verified`**. Tony was certifying a false done.
 - **Root cause, confirmed with a probe plugin.** opencode 2.2.1 **does not fire `execute.after` for a call a `before` hook rejected**. The evidence tracker only listened to `after`, so a refused edit looked like it never happened, and the gate didn't know it had failed. The unit tests' fake host did call `after` for refused calls, which hid the problem.
-- **Fix** (`2184e49`):
+- **Fix** (`2184e49`, hardened after code review):
   - The edit guard reports each refusal to `EvidenceTracker.refused()`. The wiring lives in the new `src/register.ts`.
+  - Refusals are tracked per file. A refusal stays open until that same file is changed, and the gate sends the agent back with "These edits were refused and never made". The first version stored the refusal as the last failure, and any later edit to another file erased it.
   - The fake host's `call()` now behaves like opencode: no `after` when `before` throws.
   - Regression tests at three levels: unit, wired (`register.test.ts`), and real opencode.
 - **Lesson.** The fake host must model the host's quirks, not an idealised host. Any new hook interaction gets one real-opencode integration case.
 
 ## Other changes in this round
-- **Efficiency: no duplicate test runs** (`2184e49`).
-  - When the agent already ran a check successfully after its last change, the gate doesn't run it again.
+- **Efficiency: no duplicate test runs** (`2184e49`, hardened after code review).
+  - When the agent's **latest** action that could change files was a passing check, the gate doesn't run that check again.
   - A run counts when it was the same command, the same package script under another manager, or the script's body (for example `bun test` for `npm run test`).
   - The status log marks such checks `reused`.
   - Saves one full test run per finished request whenever the agent verified its own work, which the prompt asks for.
+  - Matching is fail-closed. Any later shell command, subagent call or failed call drops the pass. Only plain commands count: no pipes, `&&`, `;`, redirects or substitutions. The run must be in the session directory (a shell `workdir` elsewhere doesn't count), and not in the background.
+  - The first version let a shell rewrite after a passing test (`printf … > src/a.ts`), or a pass in a subfolder, end as `verified`. The reviewer reproduced both against real opencode, and both are now integration tests.
 - **Efficiency: one session lookup per session.** The gate looks up a session's directory once instead of making 2 RPCs per tool call.
 - **Prompt** (`feat(prompt)`):
   - "re-read the request and check each part is done" (targets half-done finishes).
   - "report failures that predate your change instead of fixing them" (keeps the agent in scope).
   - Hosted models get a line on batching independent read-only calls. Local models keep "one call per need", because small models often break parallel calls.
 - **Eval fidelity** (`5729ec2`): a loop stop is no longer scored as a false done in the A/B, and "half done" now models a model that recovers from the edit guard.
+  - A planned A/B scenario, "claims a refused edit", was moved to the integration tests. With a model that can't recover, it only shows the edit guard stopping a blind overwrite that baseline allows, which reads as a regression in an A/B table. Its point, `unresolved` instead of `verified`, is now asserted there.
 
 ## Review notes (no change needed now)
 - **Architecture holds up.** Only `index.ts` touches `@opencode/plugin`, every module sits behind `Host`, each nudge has a key and goes out at most once, rounds are capped, and the gate never blocks on its own errors.
 - **Diagnostics cost on large TypeScript projects.** `tsc --noEmit` runs on the whole project after every edit. With a 20 s timeout, large repos switch it off for the session. Phase 3 should use `--incremental` with the buildinfo file in tmp.
 - **Pre-existing failures.** The gate can't tell a failure the agent caused from one that was already there. The new wording lets the agent report it instead of fixing it, so it costs at most one round. A real baseline would need running checks before the first edit, so wait for eval data.
+- **Snapshot paths.** The gate compares opencode's step snapshot paths with paths relative to the session directory. If the session directory is a subfolder of the git repo and snapshots are repo-relative, the paths won't match. That fails safe: extra re-checks, and no reuse.
 - **Deferred minors still open** (from Phase 1, unchanged): option type checks, loop-guard block wording for polling, `TONY_HOME` quoting, the `"<undef>"` fingerprint collision.
 
 ## Tony vs Claude Code vs Copilot

@@ -39,7 +39,7 @@ function touched(tool: string, input: unknown): string[] {
 export async function registerEditGuard(
   host: Host,
   opts: EditGuardOptions,
-  onRefuse?: (e: ToolBeforeEvent, message: string) => void,
+  onRefuse?: (e: ToolBeforeEvent, message: string, directory: string) => void,
 ): Promise<void> {
   if (!opts.enabled) return
   // sessionID -> absolute path -> sha1 of the content the session last read or wrote
@@ -68,7 +68,7 @@ export async function registerEditGuard(
       const message = known === undefined ? notReadMessage(shown) : known !== digest(abs) ? changedMessage(shown) : undefined
       if (message === undefined) continue
       try {
-        onRefuse?.(e, message)
+        onRefuse?.(e, message, dir)
       } catch {}
       throw new Error(message)
     }

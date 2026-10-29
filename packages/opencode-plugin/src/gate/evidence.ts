@@ -22,8 +22,15 @@ export interface TurnEvidence {
   lastFailure?: Failure
   openTodos: string[]
   testTampering: string[]
-  /** Check commands (normalized) the agent itself ran successfully after its last change. */
+  /** The check (normalized) the agent ran successfully as its latest action that could change files; at most one. */
   passedChecks: string[]
+  /** Edits another hook refused, per file, that no later completed edit of that file made up for. */
+  refusedEdits: RefusedEdit[]
+}
+
+export interface RefusedEdit {
+  path: string
+  message: string
 }
 
 interface Turn {
@@ -32,6 +39,7 @@ interface Turn {
   lastFailure?: Failure
   todos: string[]
   passed: Set<string>
+  refused: Map<string, string>
   /** Test file content before this turn first changed it; null when it did not exist. */
   testBaselines: Map<string, string | null>
 }
@@ -56,6 +64,18 @@ export function runsCheck(command: string): boolean {
   })
 }
 
+// Pipes, lists, redirects and substitutions: the exit code or the effect may not be the check's.
+const COMPOUND = /[|;&<>`\n]|\$\(/
+
+/** The normalized command when `e` is a plain check that passed in the foreground, in the session directory. */
+function cleanPass(e: ToolAfterEvent, directory: string): string | undefined {
+  if (e.tool !== "shell" || e.status !== "completed" || e.result.metadata?.exit !== 0) return undefined
+  const i = (e.input ?? {}) as { command?: unknown; workdir?: unknown; background?: unknown }
+  if (typeof i.command !== "string" || i.background === true || COMPOUND.test(i.command) || !runsCheck(i.command)) return undefined
+  if (i.workdir !== undefined && (typeof i.workdir !== "string" || resolve(directory, i.workdir) !== resolve(directory))) return undefined
+  return normalizeCheck(i.command)
+}
+
 const readOrNull = (path: string) => (existsSync(path) ? readFileSync(path, "utf8") : null)
 
 function toRelative(directory: string, path: string): string {
@@ -75,7 +95,7 @@ export class EvidenceTracker {
   private turn(sessionID: string): Turn {
     let t = this.turns.get(sessionID)
     if (!t) {
-      t = { changed: new Set(), changeSeq: 0, todos: [], passed: new Set(), testBaselines: new Map() }
+      t = { changed: new Set(), changeSeq: 0, todos: [], passed: new Set(), refused: new Map(), testBaselines: new Map() }
       this.turns.set(sessionID, t)
     }
     return t
@@ -97,7 +117,10 @@ export class EvidenceTracker {
     const t = this.turn(e.sessionID)
     const key = fingerprint(e.tool, e.input)
     if (e.status === "completed" && MUTATIONS.has(e.tool)) {
-      for (const path of targets(e.tool, e.input, directory)) t.changed.add(path)
+      for (const path of targets(e.tool, e.input, directory)) {
+        t.changed.add(path)
+        t.refused.delete(path)
+      }
       t.changeSeq++
       t.passed.clear()
       t.lastFailure = undefined
@@ -112,15 +135,18 @@ export class EvidenceTracker {
     const failure = this.failureOf(e)
     if (failure) t.lastFailure = failure
     else if (e.status === "completed" && t.lastFailure?.key === key) t.lastFailure = undefined
-    if (e.status === "completed" && e.tool === "shell" && e.result.metadata?.exit === 0) {
-      const command = String(((e.input ?? {}) as { command?: unknown }).command ?? "")
-      if (runsCheck(command)) t.passed.add(normalizeCheck(command))
-    }
+    // Fail closed: anything that may change files (a shell command, a subagent, a failed call) drops earlier passes.
+    // Only a check that is itself the latest such action can stand in for the gate's own run.
+    if (LOOKUPS.has(e.tool) || e.tool === "todowrite") return
+    t.passed.clear()
+    const pass = cleanPass(e, directory)
+    if (pass) t.passed.add(pass)
   }
 
   /** A call another hook refused. opencode fires no after-hook for it, so the refusing hook reports it here. */
-  refused(e: ToolBeforeEvent, message: string): void {
-    this.turn(e.sessionID).lastFailure = { tool: e.tool, summary: message.slice(-SUMMARY_CHARS), key: fingerprint(e.tool, e.input) }
+  refused(e: ToolBeforeEvent, message: string, directory: string): void {
+    const t = this.turn(e.sessionID)
+    for (const path of targets(e.tool, e.input, directory)) t.refused.set(path, message.slice(-SUMMARY_CHARS))
   }
 
   private failureOf(e: ToolAfterEvent): Failure | undefined {
@@ -163,6 +189,7 @@ export class EvidenceTracker {
       openTodos: t.todos,
       testTampering,
       passedChecks: [...t.passed].sort(),
+      refusedEdits: [...t.refused].sort(([a], [b]) => a.localeCompare(b)).map(([path, message]) => ({ path, message })),
     }
   }
 

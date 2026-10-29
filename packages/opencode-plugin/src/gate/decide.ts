@@ -1,5 +1,5 @@
 import type { TurnEvidence } from "./evidence.ts"
-import { ANNOUNCE_SECTION, checksSection, failureSection, FOOTER, HEADER, tamperSection, todosSection } from "./text.ts"
+import { ANNOUNCE_SECTION, checksSection, failureSection, FOOTER, HEADER, refusedSection, tamperSection, todosSection } from "./text.ts"
 
 export interface CheckRun {
   command: string
@@ -55,6 +55,9 @@ function reasons(input: GateInput): Reason[] {
   if (evidence.lastFailure) {
     const f = evidence.lastFailure
     out.push({ key: `failure:${f.key}`, label: "last action failed", section: failureSection(f) })
+  }
+  if (evidence.refusedEdits.length > 0) {
+    out.push({ key: `refused:${evidence.refusedEdits.map((r) => r.path).join("|")}`, label: "edits refused", section: refusedSection(evidence.refusedEdits) })
   }
   if (evidence.testTampering.length > 0) {
     out.push({ key: `tamper:${evidence.testTampering.join("|")}`, label: "tests changed", section: tamperSection(evidence.testTampering) })

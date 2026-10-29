@@ -21,7 +21,7 @@ export async function registerTony(
   await registerPrompt(host, o.prompt, o.local)
   await registerLocalContext(host, o.local)
   // Order matters: a refused edit (edit guard) must not trigger a diagnostics baseline run.
-  await registerEditGuard(host, o.editGuard, (e, message) => tracker.refused(e, message))
+  await registerEditGuard(host, o.editGuard, (e, message, dir) => tracker.refused(e, message, dir))
   await registerDiagnostics(host, o.diagnostics)
   await registerGate(host, o.gate, { ...gate, tracker })
 }

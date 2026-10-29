@@ -9,6 +9,7 @@ const evidence = (over: Partial<TurnEvidence> = {}): TurnEvidence => ({
   openTodos: [],
   testTampering: [],
   passedChecks: [],
+  refusedEdits: [],
   ...over,
 })
 const input = (over: Partial<GateInput> = {}): GateInput => ({
@@ -94,4 +95,11 @@ test("same failing call is one reason, whatever its output", () => {
 
 test("failing checks may be unrelated to the change", () => {
   expect(checksSection("bun test", "1 fail")).toContain("was there before, say so")
+})
+
+test("refused edits that were never redone send the agent back", () => {
+  const d = decide(input({ evidence: evidence({ refusedEdits: [{ path: "test/a.test.ts", message: "Edit refused: read it first" }] }) }))
+  expect(d).toMatchObject({ kind: "continue", keys: ["refused:test/a.test.ts"] })
+  expect(d.kind === "continue" && d.message).toContain("test/a.test.ts: Edit refused: read it first")
+  expect(d.kind === "continue" && d.description).toBe("Tony: edits refused")
 })

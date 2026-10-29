@@ -46,7 +46,7 @@ test("an edit-guard refusal followed by 'done' sends the agent back", async () =
   expect(await f.call(write, completed)).toContain("Edit refused")
   await f.idle("s")
   expect(f.continued).toHaveLength(1)
-  expect(f.continued[0]!.description).toContain("last action failed")
+  expect(f.continued[0]!.description).toContain("edits refused")
   expect(f.continued[0]!.text).toContain("Edit refused")
 })
 
@@ -60,4 +60,15 @@ test("redoing the refused edit after a read verifies", async () => {
   await f.idle("s")
   expect(f.continued).toEqual([])
   expect(statuses().at(-1).status).toBe("verified")
+})
+
+test("an unrelated edit after the refusal does not hide it", async () => {
+  const { f, dir } = await setup()
+  await f.call(write, completed)
+  writeFileSync(join(dir, "a.ts"), "x")
+  await f.call({ tool: "read", sessionID: "s", input: { path: "a.ts" } }, completed)
+  expect(await f.call({ tool: "write", sessionID: "s", input: { path: "a.ts", content: "y" } }, completed)).toBeUndefined()
+  await f.idle("s")
+  expect(f.continued).toHaveLength(1)
+  expect(f.continued[0]!.description).toContain("edits refused")
 })
