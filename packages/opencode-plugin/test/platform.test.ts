@@ -16,13 +16,19 @@ test("quoting follows the shell", () => {
   expect(shellQuote('say "hi"', "win32")).toBe('"say ""hi"""')
 })
 
-test("commands on PATH: executable bit on POSIX, PATHEXT on Windows", () => {
+// A POSIX PATH splits on ":", which a Windows temp dir (C:\\...) can't survive, so this half needs a POSIX host.
+test.skipIf(process.platform === "win32")("commands on PATH need the executable bit on POSIX", () => {
   const d = mkdtempSync(join(tmpdir(), "tony-path-"))
   writeFileSync(join(d, "ruff"), "")
   chmodSync(join(d, "ruff"), 0o755)
   writeFileSync(join(d, "go.EXE"), "")
   expect(onPath("ruff", { PATH: d }, "linux")).toBe(true)
   expect(onPath("go", { PATH: d }, "linux")).toBe(false)
+})
+
+test("commands on PATH use PATHEXT on Windows", () => {
+  const d = mkdtempSync(join(tmpdir(), "tony-path-"))
+  writeFileSync(join(d, "go.EXE"), "")
   expect(onPath("go", { PATH: d, PATHEXT: ".COM;.EXE;.CMD" }, "win32")).toBe(true)
   expect(onPath("missing", { PATH: d, PATHEXT: ".EXE" }, "win32")).toBe(false)
 })
