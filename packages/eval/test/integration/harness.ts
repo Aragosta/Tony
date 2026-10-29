@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
+import { parseEvents } from "../../src/events.ts"
 import type { GateRecord } from "../../src/run.ts"
 import { startMockLLM, type Step } from "./mock-llm.ts"
 
@@ -14,12 +15,13 @@ export interface ScriptedRun {
   log: string[]
   status: GateRecord[]
   exitCode: number | null
+  finalText: string
 }
 
 const lines = (file: string) => (existsSync(file) ? readFileSync(file, "utf8").split("\n").filter(Boolean) : [])
 
 /** Runs real `opencode run` in a fresh git repo against a scripted model. */
-export async function runScripted(opts: { script: Step[]; repo: Record<string, string>; tony: boolean; options?: object }): Promise<ScriptedRun> {
+export async function runScripted(opts: { script: Step[]; repo: Record<string, string>; tony: boolean; options?: object; setup?: (workspace: string) => void }): Promise<ScriptedRun> {
   const scratch = mkdtempSync(join(tmpdir(), "tony-int-"))
   const workspace = join(scratch, "repo")
   for (const [path, content] of Object.entries(opts.repo)) {
@@ -29,6 +31,7 @@ export async function runScripted(opts: { script: Step[]; repo: Record<string, s
   mkdirSync(workspace, { recursive: true })
   const env = { ...process.env, ...GIT_ENV }
   spawnSync("bash", ["-lc", "git init -q && echo opencode.json >> .git/info/exclude && git add -A && git commit -qm initial"], { cwd: workspace, env })
+  opts.setup?.(workspace)
 
   const logFile = join(scratch, "requests.jsonl")
   const statusFile = join(scratch, "status.jsonl")
@@ -52,13 +55,15 @@ export async function runScripted(opts: { script: Step[]; repo: Record<string, s
   const configHome = join(scratch, "config")
   mkdirSync(configHome)
 
+  let stdout = ""
   const exitCode = await new Promise<number | null>((resolve) => {
     const child = spawn("opencode", ["run", "--standalone", "--auto", "--format", "json", "--model", "llamacpp/local", "go"], {
       cwd: workspace,
       env: { ...env, PWD: workspace, XDG_CONFIG_HOME: configHome, TONY_STATUS_FILE: statusFile },
-      stdio: "ignore",
+      stdio: ["ignore", "pipe", "ignore"],
       detached: true,
     })
+    child.stdout!.on("data", (d) => (stdout += d))
     const timer = setTimeout(() => {
       try {
         process.kill(-child.pid!, "SIGKILL")
@@ -71,5 +76,5 @@ export async function runScripted(opts: { script: Step[]; repo: Record<string, s
     child.on("error", () => resolve(null))
   })
   mock.stop()
-  return { workspace, log: lines(logFile), status: lines(statusFile).map((l) => JSON.parse(l)), exitCode }
+  return { workspace, log: lines(logFile), status: lines(statusFile).map((l) => JSON.parse(l)), exitCode, finalText: parseEvents(stdout.split("\n")).finalText }
 }
