@@ -1,0 +1,75 @@
+import { spawn, spawnSync } from "node:child_process"
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { dirname, join } from "node:path"
+import { fileURLToPath } from "node:url"
+import type { GateRecord } from "../../src/run.ts"
+import { startMockLLM, type Step } from "./mock-llm.ts"
+
+const PLUGIN = fileURLToPath(new URL("../../../opencode-plugin", import.meta.url))
+const GIT_ENV = { GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@t", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@t" }
+
+export interface ScriptedRun {
+  workspace: string
+  log: string[]
+  status: GateRecord[]
+  exitCode: number | null
+}
+
+const lines = (file: string) => (existsSync(file) ? readFileSync(file, "utf8").split("\n").filter(Boolean) : [])
+
+/** Runs real `opencode run` in a fresh git repo against a scripted model. */
+export async function runScripted(opts: { script: Step[]; repo: Record<string, string>; tony: boolean; options?: object }): Promise<ScriptedRun> {
+  const scratch = mkdtempSync(join(tmpdir(), "tony-int-"))
+  const workspace = join(scratch, "repo")
+  for (const [path, content] of Object.entries(opts.repo)) {
+    mkdirSync(dirname(join(workspace, path)), { recursive: true })
+    writeFileSync(join(workspace, path), content)
+  }
+  mkdirSync(workspace, { recursive: true })
+  const env = { ...process.env, ...GIT_ENV }
+  spawnSync("bash", ["-lc", "git init -q && echo opencode.json >> .git/info/exclude && git add -A && git commit -qm initial"], { cwd: workspace, env })
+
+  const logFile = join(scratch, "requests.jsonl")
+  const statusFile = join(scratch, "status.jsonl")
+  const mock = await startMockLLM(opts.script, logFile)
+  const config: Record<string, unknown> = {
+    providers: {
+      llamacpp: {
+        name: "mock",
+        package: "@opencode/ai/providers/openai-compatible",
+        settings: { baseURL: `${mock.url}/v1`, apiKey: "x" },
+        models: { local: { name: "mock", capabilities: { tools: true }, limit: { context: 131072, output: 16384 } } },
+      },
+    },
+  }
+  if (opts.tony) {
+    config.plugins = [{ package: PLUGIN, options: opts.options ?? {} }]
+    // As in config/opencode.json: the todo tool is opt-in in opencode.
+    config.experimental = { todo: true }
+  }
+  writeFileSync(join(workspace, "opencode.json"), JSON.stringify(config))
+  const configHome = join(scratch, "config")
+  mkdirSync(configHome)
+
+  const exitCode = await new Promise<number | null>((resolve) => {
+    const child = spawn("opencode", ["run", "--standalone", "--auto", "--format", "json", "--model", "llamacpp/local", "go"], {
+      cwd: workspace,
+      env: { ...env, PWD: workspace, XDG_CONFIG_HOME: configHome, TONY_STATUS_FILE: statusFile },
+      stdio: "ignore",
+      detached: true,
+    })
+    const timer = setTimeout(() => {
+      try {
+        process.kill(-child.pid!, "SIGKILL")
+      } catch {}
+    }, 120000)
+    child.on("close", (code) => {
+      clearTimeout(timer)
+      resolve(code)
+    })
+    child.on("error", () => resolve(null))
+  })
+  mock.stop()
+  return { workspace, log: lines(logFile), status: lines(statusFile).map((l) => JSON.parse(l)), exitCode }
+}

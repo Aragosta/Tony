@@ -4,6 +4,17 @@ import { parseEvents, type RunMetrics } from "./events.ts"
 import type { EvalTask } from "./tasks.ts"
 import { buildConfig, isolatedConfigHome, prepareWorkspace, type Variant } from "./workspace.ts"
 
+/** One completion-gate status line from the Tony plugin (same shape as its StatusRecord). */
+export interface GateRecord {
+  sessionID: string
+  status: "verified" | "no-changes" | "no-checks" | "unresolved" | "needs-user"
+  rounds: number
+  checks: { command: string; ok: boolean; skipped?: boolean }[]
+  pending: string[]
+  testsChanged: string[]
+  judge?: "done" | "continue" | "blocked" | "invalid"
+}
+
 export interface RunOptions {
   model: string
   variant: Variant
