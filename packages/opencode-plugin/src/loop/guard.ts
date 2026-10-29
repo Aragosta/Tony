@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto"
-import type { Host, ToolAfterEvent } from "../host.ts"
+import type { Host } from "../host.ts"
 import type { LoopGuardOptions } from "../options.ts"
 import { LoopDetector } from "./detector.ts"
+import { resultText } from "../tool-result.ts"
 import { fingerprint } from "./fingerprint.ts"
 
 export const RESULT_EXCERPT_CHARS = 1500
@@ -16,17 +17,6 @@ export function blockMessage(tool: string, count: number, lastResult: string | u
 
 export function stopMessage(tool: string, count: number): string {
   return `Stopped: \`${tool}\` was called with identical input ${count} times in a row. Execution is paused so the user can steer.`
-}
-
-/** What the model saw from the call: text content, else structured output, else the error message. */
-function resultText(e: ToolAfterEvent): string | undefined {
-  if (e.status === "error") return e.error?.message
-  const { content, output } = e.result
-  if (typeof content === "string") return content
-  const parts = (content ?? []).filter((p) => typeof p.text === "string").map((p) => p.text)
-  if (parts.length > 0) return parts.join("\n")
-  if (output === undefined) return undefined
-  return typeof output === "string" ? output : JSON.stringify(output)
 }
 
 // Inputs can be whole files (write, patch); keep a short digest instead.
