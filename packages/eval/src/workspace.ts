@@ -16,12 +16,13 @@ export interface ConfigInput {
 
 export const LANGFUSE_PACKAGE = "@langfuse/opencode-observability-plugin@0.7.0"
 
-/** baseline = plain opencode; tony = config/opencode.json with the plugin path made absolute. */
+/** baseline = plain opencode; tony = config/opencode.json with the published package swapped for this checkout's plugin. */
 export function buildConfig(input: ConfigInput): Record<string, unknown> {
   const config: Record<string, any> = {}
   if (input.variant === "tony") {
-    const text = readFileSync(join(input.tonyHome, "config/opencode.json"), "utf8")
-    Object.assign(config, JSON.parse(text.replaceAll("{env:TONY_HOME}", input.tonyHome)))
+    Object.assign(config, JSON.parse(readFileSync(join(input.tonyHome, "config/opencode.json"), "utf8")))
+    // The eval measures the code in this checkout, not the version on npm.
+    config.plugins = [{ ...config.plugins[0], package: join(input.tonyHome, "packages/opencode-plugin") }, ...config.plugins.slice(1)]
   }
   if (input.langfuse) {
     config.plugins = [...(config.plugins ?? []), { package: LANGFUSE_PACKAGE, options: { tags: input.tags } }]

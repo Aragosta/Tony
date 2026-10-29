@@ -14,17 +14,22 @@
       },
     },
     "packages/opencode-plugin": {
-      "name": "@tony/opencode-plugin",
-      "version": "0.1.0",
+      "name": "@aragosta/tony",
+      "version": "1.0.0",
       "devDependencies": {
         "@opencode/plugin": "2.2.1",
         "@types/bun": "1.4.4",
         "typescript": "5.9.3",
       },
+      "peerDependencies": {
+        "@opencode/plugin": "2.2.1",
+      },
     },
   },
   "packages": {
     "@ai-sdk/provider": ["@ai-sdk/provider@3.0.8", "", { "dependencies": { "json-schema": "^0.4.0" } }, "sha512-oGMAgGoQdBXbZqNG0Ze56CHjDZ1IDYOwGYxYjO5KLSlz5HiNQ9udIXsPZ61VWaHGZ5XW/jyjmr6t2xz2jGVwbQ=="],
+
+    "@aragosta/tony": ["@aragosta/tony@workspace:packages/opencode-plugin"],
 
     "@aws-crypto/crc32": ["@aws-crypto/crc32@5.2.0", "", { "dependencies": { "@aws-crypto/util": "^5.2.0", "@aws-sdk/types": "^3.222.0", "tslib": "^2.6.2" } }, "sha512-nLbCWqQNgUiwwtFsen1AdzAtvuLRsQS8rYgMuxCrdKf9kOssamGLuPwyTY9wyYblNr9+1XM8v6zoDTPPSIeANg=="],
 
@@ -205,8 +210,6 @@
     "@standard-schema/spec": ["@standard-schema/spec@1.1.0", "", {}, "sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w=="],
 
     "@tony/eval": ["@tony/eval@workspace:packages/eval"],
-
-    "@tony/opencode-plugin": ["@tony/opencode-plugin@workspace:packages/opencode-plugin"],
 
     "@tufjs/canonical-json": ["@tufjs/canonical-json@2.0.0", "", {}, "sha512-yVtV8zsdo8qFHe+/3kw81dSLyF7D576A5cCFCi4X7B39tWT7SekaEFUnvnWJHz+9qO7qJTah1JbrDjWKqFtdWA=="],
 

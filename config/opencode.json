@@ -1,5 +1,6 @@
 {
-  "plugins": [{ "package": "{env:TONY_HOME}/packages/opencode-plugin", "options": {} }],
+  "$schema": "https://opencode.ai/config.json",
+  "plugins": [{ "package": "@aragosta/tony@1.0.0", "options": {} }],
   "experimental": { "todo": true, "background_compaction": true },
   "agents": {
     "build": { "steps": 150 },

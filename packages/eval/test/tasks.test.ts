@@ -41,7 +41,7 @@ describe("buildConfig", () => {
 
   test("tony config", () => {
     const expected = JSON.parse(readFileSync(join(repoRoot, "config/opencode.json"), "utf8"))
-    expected.plugins[0].package = `${repoRoot}/packages/opencode-plugin`
+    expected.plugins[0].package = join(repoRoot, "packages/opencode-plugin")
     expect(buildConfig({ variant: "tony", tonyHome: repoRoot, langfuse: false, tags: [] })).toEqual(expected)
   })
 

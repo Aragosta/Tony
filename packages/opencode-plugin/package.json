@@ -1,10 +1,46 @@
 {
-  "name": "@tony/opencode-plugin",
-  "version": "0.1.0",
-  "private": true,
+  "name": "@aragosta/tony",
+  "version": "1.0.0",
+  "description": "Tony: an opencode plugin that makes coding agents finish tasks correctly: completion gate, loop guard, edit guard, diagnostics and a better system prompt. Works with local models.",
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "agent",
+    "llm",
+    "local-llm",
+    "llama.cpp",
+    "ollama"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Aragosta/Tony.git",
+    "directory": "packages/opencode-plugin"
+  },
+  "homepage": "https://github.com/Aragosta/Tony#readme",
   "type": "module",
-  "exports": { ".": "./src/index.ts" },
-  "scripts": { "typecheck": "tsc --noEmit" },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "files": [
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "@opencode/plugin": "2.2.1"
+  },
+  "peerDependenciesMeta": {
+    "@opencode/plugin": {
+      "optional": true
+    }
+  },
   "devDependencies": {
     "@opencode/plugin": "2.2.1",
     "@types/bun": "1.4.4",
