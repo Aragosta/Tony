@@ -16,7 +16,7 @@ opencode treats "the model stopped talking" as done. Tony checks the evidence fi
 - its todo list has open items,
 - it ended by announcing a step it didn't take ("Let me run the tests.").
 
-Each reason goes out once, at most `gate.maxRounds` (3) times per request. You see each nudge as a "Tony: …" row in the session. Edits to files the agent hasn't read, or that changed since, are refused, and new compiler or lint errors are shown right after each edit.
+Each reason goes out once, at most `gate.maxRounds` (3) times per request. A check the agent itself already passed after its last change is not run again. You see each nudge as a "Tony: …" row in the session. Edits to files the agent hasn't read, or that changed since, are refused, and new compiler or lint errors are shown right after each edit.
 
 Options: `"gate": { "checks": ["npm test"] }` overrides detection; `"gate": { "judge": true }` adds a reviewer model that compares the work with your request once the checks pass (one extra model call per finished request).
 
@@ -57,6 +57,12 @@ Tony also caps opencode's view of local models at 131072, so compaction starts i
 bun packages/eval/src/cli.ts --model <provider/model> --repeat 3
 ```
 Runs the task suite in `evals/tasks/` with plain opencode and with Tony, and writes a comparison to `evals/results/`. See `evals/README.md`.
+
+For a local model, start `llama-server` as above, then:
+```bash
+bun packages/eval/src/cli.ts --model llamacpp/local --repeat 3
+```
+Compare **false done** (finished but wrong) and **pass rate** between the two variants. Without a model, `bun packages/eval/test/integration/ab.ts` runs the same comparison with a scripted model (needs `opencode` 2.2.1 on PATH).
 
 ## Develop
 ```bash
