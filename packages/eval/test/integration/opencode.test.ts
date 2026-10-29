@@ -1,10 +1,11 @@
 // Real opencode 2.2.1 + Tony against a scripted model. Opt in: TONY_INTEGRATION=1 bun test packages/eval/test/integration
 import { describe, expect, test } from "bun:test"
 import { spawnSync } from "node:child_process"
+import { opencodeBinary } from "../../src/opencode-bin.ts"
 import { runScripted } from "./harness.ts"
 
-const enabled =
-  process.env.TONY_INTEGRATION === "1" && spawnSync("opencode", ["--version"], { encoding: "utf8" }).stdout?.includes("2.2.1")
+// Opted in means required: a missing or wrong opencode fails here instead of silently skipping the suite.
+const enabled = process.env.TONY_INTEGRATION === "1"
 
 const REPO = {
   "package.json": JSON.stringify({ name: "fixture", private: true, type: "module", scripts: { test: "bun test" } }),
@@ -15,6 +16,10 @@ const GATE_MESSAGE = "Before you finish:"
 const count = (log: string[], text: string) => log.filter((l) => l.includes(text)).length
 
 describe.skipIf(!enabled)("opencode integration", () => {
+  test("opencode 2.2.1 is installed", () => {
+    expect(spawnSync(opencodeBinary(), ["--version"], { encoding: "utf8" }).stdout ?? "").toContain("2.2.1")
+  })
+
   test("loop guard (phase 1 regression)", async () => {
     const shell = { tool: "shell", args: { command: "git log --oneline -1" } }
     const r = await runScripted({ script: Array(6).fill(shell), repo: REPO, tony: true })

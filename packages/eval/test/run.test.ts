@@ -3,6 +3,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { fileURLToPath } from "node:url"
+import { opencodeBinary } from "../src/opencode-bin.ts"
 import { runTask, type RunOptions } from "../src/run.ts"
 import type { EvalTask } from "../src/tasks.ts"
 
@@ -98,4 +99,9 @@ test("gate status is captured", async () => {
   const gateFake = fileURLToPath(new URL("./fixtures/fake-opencode-gate.sh", import.meta.url))
   const r = await runTask(makeTask("true"), { ...opts, opencodeBin: gateFake })
   expect(r.gate?.status).toBe("verified")
+})
+
+test("opencode binary is used as given outside Windows", () => {
+  expect(opencodeBinary("opencode", "linux")).toBe("opencode")
+  expect(opencodeBinary("/x/opencode", "win32")).toBe("/x/opencode")
 })

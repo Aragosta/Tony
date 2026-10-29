@@ -4,6 +4,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { parseEvents, type RunMetrics } from "./events.ts"
+import { opencodeBinary } from "./opencode-bin.ts"
 import type { EvalTask } from "./tasks.ts"
 import { buildConfig, isolatedConfigHome, prepareWorkspace, type Variant } from "./workspace.ts"
 
@@ -61,7 +62,7 @@ function runOpencode(bin: string, args: string[], cwd: string, extraEnv: Record<
   return new Promise<{ stdout: string; stderr: string; exitCode: number | null; timedOut: boolean; spawnError?: string }>((resolve) => {
     // opencode takes its working directory from $PWD, which spawn's `cwd` does not update.
     const env = { ...process.env, PWD: cwd, ...extraEnv }
-    const child = spawn(bin, args, { cwd, env, detached: true, stdio: ["ignore", "pipe", "pipe"] })
+    const child = spawn(opencodeBinary(bin), args, { cwd, env, detached: true, stdio: ["ignore", "pipe", "pipe"] })
     child.on("error", (err) => {
       clearTimeout(timer)
       resolve({ stdout, stderr, exitCode: null, timedOut: false, spawnError: err.message })

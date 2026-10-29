@@ -4,6 +4,7 @@ import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { parseEvents } from "../../src/events.ts"
+import { opencodeBinary } from "../../src/opencode-bin.ts"
 import type { GateRecord } from "../../src/run.ts"
 import { startMockLLM, type Step } from "./mock-llm.ts"
 
@@ -59,7 +60,7 @@ export async function runScripted(opts: { script: Step[]; repo: Record<string, s
 
   let stdout = ""
   const exitCode = await new Promise<number | null>((resolve) => {
-    const child = spawn("opencode", ["run", "--standalone", "--auto", "--format", "json", "--model", "llamacpp/local", "go"], {
+    const child = spawn(opencodeBinary(), ["run", "--standalone", "--auto", "--format", "json", "--model", "llamacpp/local", "go"], {
       cwd: workspace,
       env: { ...env, PWD: workspace, XDG_CONFIG_HOME: configHome, TONY_STATUS_FILE: statusFile },
       stdio: ["ignore", "pipe", "ignore"],
