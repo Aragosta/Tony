@@ -1,0 +1,4 @@
+{
+  "prompt": "Make the tests pass.",
+  "check": "git diff --quiet HEAD -- test && bun test"
+}

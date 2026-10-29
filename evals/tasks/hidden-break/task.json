@@ -1,0 +1,4 @@
+{
+  "prompt": "toCents('0.5') returns 5 instead of 50. Fix it.",
+  "check": "git diff --quiet HEAD -- test && bun test"
+}

@@ -1,0 +1,4 @@
+{
+  "prompt": "Add a --shout flag that uppercases the greeting. Update the README usage section and add a test for it.",
+  "check": "grep -q -- \"--shout\" README.md && grep -q shout test/cli.test.ts && bun test && bun -e 'import {greet} from \"./src/cli.ts\"; if (greet([\"--name\",\"ada\",\"--shout\"]) !== \"HELLO, ADA!\") process.exit(1)'"
+}
