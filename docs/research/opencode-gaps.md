@@ -42,6 +42,16 @@ Structured, cache-aware compaction with background precompute; tool-output overf
 - **Compare:** Claude Code runs Bash in an OS sandbox (filesystem/network limits) so it can auto-approve more safely.
 - **Fix:** `tony.sandbox`. `ctx.shell.hook("create.before")` wraps commands in bubblewrap (Linux) / sandbox-exec (macOS), or run Tony inside a devcontainer. Lets us allow more without prompts, which keeps long tasks moving.
 
+### 7b. No guard against tool-call loops ("doom loop") in V2
+- **Evidence:** V1 detects 3 identical consecutive tool calls (same tool, same input) and asks the user (`v1: session/processor.ts`, `DOOM_LOOP_THRESHOLD = 3`, permission `doom_loop`). V2 only parses the `doom_loop` config key for migration (`core/src/v1/config/permission.ts`); nothing triggers it. Open/duplicate reports on V2: [#56825](https://github.com/anomalyco/opencode/issues/56825) (qwen3.6 / qwen3-coder local models re-running `git log` dozens of times), [#59567](https://github.com/anomalyco/opencode/issues/59567) (identical calls until output limit), [#57501](https://github.com/anomalyco/opencode/issues/57501) (model narrates "let me make the call" without calling). The bot links an unmerged PR #53032. The only V2 backstop is an optional per-agent `steps` cap that forces a final answer with `toolChoice: "none"` (`session/runner/llm.ts`).
+- **Fix:** `tony.loop-guard`:
+  1. `tool.execute.before`: key = tool + normalized input + hash of relevant file state. On the 3rd identical call with no state change, don't run it; return an error that quotes the earlier result and tells the model to use it or try something different. On the 5th, interrupt and ask the user.
+  2. Detect "no-progress" loops (N steps without an edit, new file read, or new information) and inject a synthetic "summarize what you know and decide" message.
+  3. Detect repeated assistant text (narrating without calling) from step events; interrupt and nudge.
+  4. Set `steps` on every agent as a hard backstop.
+  5. Local models: verify the server's context length is set (a silently truncated prompt hides earlier calls from the model, which then repeats them), apply each model's recommended sampling settings via the `context` hook, and keep the tool list small (Code Mode).
+  6. Every Tony loop (`verify`, `factcheck`, `goal`) has round and stall caps.
+
 ### 8. V2 is young
 - **Evidence:** plugin API marked beta; V1 plugins (DCP, supermemory) don't load; LSP regressed; GitHub Action removed in 2.2.0; breaking changes in each release (CHANGELOG).
 - **Fix:** pin the opencode version; keep Tony's plugins behind a thin adapter; upgrade only after the eval suite passes.
@@ -60,6 +70,6 @@ Structured, cache-aware compaction with background precompute; tool-output overf
 2. `tony.prompt` (largest effect for least code).
 3. `tony.diagnostics` + `tony.edit-guard`.
 4. `tony.verify` + enable todo.
-5. `tony.agents` (cheap read-only explore, reviewer).
+5. `tony.loop-guard` + `tony.agents` (cheap read-only explore, reviewer).
 6. `tony.context` + background compaction.
 7. `tony.sandbox`, `tony.factcheck`, then edit healing / Headroom / memory by eval data.
