@@ -1,12 +1,34 @@
-import type { ContextCap, ContextEvent, Host, ModelEntry, PromptEvent, ToolAfterEvent, ToolBeforeEvent } from "../src/host.ts"
+import type {
+  ContextCap,
+  ContextEvent,
+  Host,
+  IdleBackground,
+  IdleEvent,
+  ModelEntry,
+  PromptEvent,
+  SessionInfo,
+  ToolAfterEvent,
+  ToolBeforeEvent,
+  TranscriptMessage,
+} from "../src/host.ts"
 
 type Cb<E> = (e: E) => void | Promise<void>
+type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never
+/** Tests pass completed events without `append`; the fake supplies one. */
+export type AfterInput = DistributiveOmit<ToolAfterEvent, "append">
 
 export function createFakeHost() {
   const beforeCbs: Cb<ToolBeforeEvent>[] = []
   const afterCbs: Cb<ToolAfterEvent>[] = []
   const contextCbs: Cb<ContextEvent>[] = []
   const promptCbs: Cb<PromptEvent>[] = []
+  const idleCbs: Cb<IdleEvent>[] = []
+  const sessions = new Map<string, SessionInfo>()
+  const transcripts = new Map<string, TranscriptMessage[]>()
+  const continued: { sessionID: string; text: string; description: string }[] = []
+  const judgeReplies: string[] = []
+  const judgePrompts: string[] = []
+  const appended: string[] = []
   /** child sessionID -> parent sessionID */
   const parents = new Map<string, string>()
   const interrupts: string[] = []
@@ -37,6 +59,22 @@ export function createFakeHost() {
     async agentHasCustomSystem(agentID) {
       return customSystemAgents.has(agentID)
     },
+    async onIdle(cb) {
+      idleCbs.push(cb)
+    },
+    async sessionInfo(sessionID) {
+      return sessions.get(sessionID) ?? { directory: process.cwd() }
+    },
+    async transcript(sessionID) {
+      return transcripts.get(sessionID) ?? []
+    },
+    async continueWith(sessionID, text, description) {
+      continued.push({ sessionID, text, description })
+    },
+    async judge(_sessionID, prompt) {
+      judgePrompts.push(prompt)
+      return judgeReplies.shift() ?? ""
+    },
     async onModels(p) {
       plan = p
     },
@@ -47,13 +85,25 @@ export function createFakeHost() {
     interrupts,
     customSystemAgents,
     parents,
+    sessions,
+    transcripts,
+    continued,
+    judgeReplies,
+    judgePrompts,
+    appended,
+    async idle(sessionID: string, background: IdleBackground[] = []) {
+      for (const cb of idleCbs) await cb({ sessionID, background })
+    },
     async prompt(sessionID: string) {
       for (const cb of promptCbs) await cb({ sessionID })
     },
     async before(e: ToolBeforeEvent) {
       for (const cb of beforeCbs) await cb(e)
     },
-    async after(e: ToolAfterEvent) {
+    async after(input: AfterInput) {
+      const e = (
+        input.status === "completed" ? { ...input, append: (t: string) => void appended.push(t) } : input
+      ) as ToolAfterEvent
       for (const cb of afterCbs) await cb(e)
     },
     async context(e: ContextEvent) {

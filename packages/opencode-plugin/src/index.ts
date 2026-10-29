@@ -23,6 +23,9 @@ export function createHost(ctx: PluginContext): Host {
                 input: e.input,
                 status: "completed",
                 result: { content: e.result.content as string | ReadonlyArray<TextPart> | undefined, output: e.result.output },
+                append() {
+                  throw new Error("not wired")
+                },
               }
             : { tool: e.tool, sessionID: e.sessionID, input: e.input, status: "error", error: { message: e.error.message } },
         ),
@@ -64,6 +67,21 @@ export function createHost(ctx: PluginContext): Host {
       } catch {
         return false
       }
+    },
+    async onIdle() {
+      throw new Error("not wired")
+    },
+    async sessionInfo() {
+      throw new Error("not wired")
+    },
+    async transcript() {
+      throw new Error("not wired")
+    },
+    async continueWith() {
+      throw new Error("not wired")
+    },
+    async judge() {
+      throw new Error("not wired")
     },
     async onModels(plan) {
       await ctx.model.transform((models) => {
