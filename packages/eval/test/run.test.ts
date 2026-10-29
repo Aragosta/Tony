@@ -43,3 +43,9 @@ test("timeout marks the run failed", async () => {
   expect(r.passed).toBe(false)
   expect(Date.now() - start).toBeLessThan(4000)
 })
+
+test("missing binary fails the run instead of hanging", async () => {
+  const r = await runTask(makeTask("true"), { ...opts, opencodeBin: "/nonexistent/opencode" })
+  expect(r.passed).toBe(false)
+  expect(r.checkOutput).toContain("failed to start")
+})

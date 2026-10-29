@@ -30,8 +30,12 @@ const CHECK_OUTPUT_CHARS = 4000
 
 /** Runs opencode in its own process group; on timeout the whole group is killed. */
 function runOpencode(bin: string, args: string[], cwd: string, timeoutMs: number) {
-  return new Promise<{ stdout: string; exitCode: number | null; timedOut: boolean }>((resolve) => {
+  return new Promise<{ stdout: string; exitCode: number | null; timedOut: boolean; spawnError?: string }>((resolve) => {
     const child = spawn(bin, args, { cwd, detached: true, stdio: ["ignore", "pipe", "ignore"] })
+    child.on("error", (err) => {
+      clearTimeout(timer)
+      resolve({ stdout, exitCode: null, timedOut: false, spawnError: err.message })
+    })
     let stdout = ""
     let timedOut = false
     child.stdout.setEncoding("utf8")
@@ -65,7 +69,8 @@ export async function runTask(task: EvalTask, opts: RunOptions): Promise<RunResu
 
   let passed = false
   let checkOutput = run.timedOut ? `timed out after ${task.timeoutSec}s` : ""
-  if (!run.timedOut) {
+  if (run.spawnError) checkOutput = `opencode failed to start: ${run.spawnError}`
+  else if (!run.timedOut) {
     const check = spawnSync("bash", ["-lc", task.check], { cwd: workspace, encoding: "utf8" })
     passed = check.status === 0
     checkOutput = (check.stdout + check.stderr).slice(-CHECK_OUTPUT_CHARS)
