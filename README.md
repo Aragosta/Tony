@@ -8,6 +8,18 @@ What Phase 1 adds to plain opencode:
 - **Local context sync.** Local models are capped at a 128k window, so compaction starts before the server truncates the prompt.
 - **Safer defaults.** The todo tool is on, background compaction is on, every agent has a step cap, and `explore` can only run read-only shell commands.
 
+## Completion gate
+opencode treats "the model stopped talking" as done. Tony checks the evidence first. When the agent stops after changing files, Tony runs the project's checks (`typecheck`, `lint` and `test` scripts, `cargo test`, `go test`, `pytest` or `make test`, detected automatically). It sends the agent back, in one message, when:
+- the checks fail (with the output),
+- its last test or build command failed and nothing changed after it,
+- it changed existing tests (removed cases or assertions, added `skip`),
+- its todo list has open items,
+- it ended by announcing a step it didn't take ("Let me run the tests.").
+
+Each reason goes out once, at most `gate.maxRounds` (3) times per request. You see each nudge as a "Tony: …" row in the session. Edits to files the agent hasn't read, or that changed since, are refused, and new compiler or lint errors are shown right after each edit.
+
+Options: `"gate": { "checks": ["npm test"] }` overrides detection; `"gate": { "judge": true }` adds a reviewer model that compares the work with your request once the checks pass (one extra model call per finished request).
+
 ## Install
 ```bash
 git clone <this repo> ~/tony && cd ~/tony && bun install
