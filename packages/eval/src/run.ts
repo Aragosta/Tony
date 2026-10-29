@@ -31,7 +31,9 @@ const CHECK_OUTPUT_CHARS = 4000
 /** Runs opencode in its own process group; on timeout the whole group is killed. */
 function runOpencode(bin: string, args: string[], cwd: string, timeoutMs: number) {
   return new Promise<{ stdout: string; exitCode: number | null; timedOut: boolean; spawnError?: string }>((resolve) => {
-    const child = spawn(bin, args, { cwd, detached: true, stdio: ["ignore", "pipe", "ignore"] })
+    // opencode takes its working directory from $PWD, which spawn's `cwd` does not update.
+    const env = { ...process.env, PWD: cwd }
+    const child = spawn(bin, args, { cwd, env, detached: true, stdio: ["ignore", "pipe", "ignore"] })
     child.on("error", (err) => {
       clearTimeout(timer)
       resolve({ stdout, exitCode: null, timedOut: false, spawnError: err.message })

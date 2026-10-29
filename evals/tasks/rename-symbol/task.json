@@ -1,0 +1,1 @@
+{ "prompt": "Rename getUsr to getUser everywhere.", "check": "! grep -rn getUsr src test && bun test" }

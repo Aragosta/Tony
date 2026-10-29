@@ -1,0 +1,1 @@
+{ "prompt": "Read README.md and write its first line, exactly, into out.txt.", "check": "test \"$(cat out.txt)\" = TONY-SMOKE-42", "timeoutSec": 300 }

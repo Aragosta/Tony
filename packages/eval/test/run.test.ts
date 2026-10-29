@@ -49,3 +49,9 @@ test("missing binary fails the run instead of hanging", async () => {
   expect(r.passed).toBe(false)
   expect(r.checkOutput).toContain("failed to start")
 })
+
+test("opencode sees the workspace as $PWD", async () => {
+  const pwdFake = fileURLToPath(new URL("./fixtures/fake-opencode-pwd.ts", import.meta.url))
+  const r = await runTask(makeTask("test -f done.txt"), { ...opts, opencodeBin: pwdFake })
+  expect(r.passed).toBe(true)
+})

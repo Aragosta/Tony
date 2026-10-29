@@ -1,0 +1,6 @@
+{
+  "prompt": "What is the subject of the latest commit? Write only the subject into answer.txt.",
+  "check": "test \"$(cat answer.txt)\" = \"$(git log -1 --format=%s)\"",
+  "setup": "for i in 1 2 3; do echo $i > f$i; git add -A; git commit -qm \"change $i\"; done",
+  "timeoutSec": 300
+}

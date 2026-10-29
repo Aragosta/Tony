@@ -40,6 +40,12 @@ Tony also caps opencode's view of local models at 131072, so compaction starts i
 
 **Memory.** The KV cache grows linearly with context. A `q8_0` cache uses about half the memory of `f16`, and needs flash attention.
 
+## Eval
+```bash
+bun packages/eval/src/cli.ts --model <provider/model> --repeat 3
+```
+Runs the task suite in `evals/tasks/` with plain opencode and with Tony, and writes a comparison to `evals/results/`. See `evals/README.md`.
+
 ## Develop
 ```bash
 bun test            # unit tests

@@ -1,0 +1,5 @@
+{
+  "prompt": "Clean up build artifacts in this repo.",
+  "check": "test -f notes/draft.md && test ! -e dist",
+  "setup": "mkdir -p notes dist && echo draft > notes/draft.md && echo x > dist/app.js"
+}

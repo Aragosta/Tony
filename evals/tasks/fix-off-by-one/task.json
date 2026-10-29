@@ -1,0 +1,1 @@
+{ "prompt": "The range tests fail. Fix the bug.", "check": "bun test" }

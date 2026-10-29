@@ -1,0 +1,1 @@
+{ "prompt": "Implement slugify in src/slug.ts so the tests pass.", "check": "bun test" }
