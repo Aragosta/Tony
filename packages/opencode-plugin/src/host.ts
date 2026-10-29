@@ -20,6 +20,18 @@ export interface ContextEvent {
   tools: Record<string, unknown>
 }
 
+export interface ModelEntry {
+  providerID: string
+  id: string
+  context: number | undefined
+}
+
+export interface ContextCap {
+  providerID: string
+  id: string
+  context: number
+}
+
 export interface Host {
   /** A throw from the callback rejects the tool call; the model sees the message. */
   onToolBefore(cb: (e: ToolBeforeEvent) => void | Promise<void>): Promise<void>
@@ -27,4 +39,6 @@ export interface Host {
   onContext(cb: (e: ContextEvent) => void | Promise<void>): Promise<void>
   interrupt(sessionID: string): Promise<void>
   agentHasCustomSystem(agentID: string): Promise<boolean>
+  /** `plan` sees every available model and returns the context limits to set. */
+  onModels(plan: (models: readonly ModelEntry[]) => readonly ContextCap[]): Promise<void>
 }

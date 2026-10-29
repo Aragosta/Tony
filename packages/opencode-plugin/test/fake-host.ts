@@ -1,4 +1,4 @@
-import type { ContextEvent, Host, ToolAfterEvent, ToolBeforeEvent } from "../src/host.ts"
+import type { ContextCap, ContextEvent, Host, ModelEntry, ToolAfterEvent, ToolBeforeEvent } from "../src/host.ts"
 
 type Cb<E> = (e: E) => void | Promise<void>
 
@@ -8,6 +8,7 @@ export function createFakeHost() {
   const contextCbs: Cb<ContextEvent>[] = []
   const interrupts: string[] = []
   const customSystemAgents = new Set<string>()
+  let plan: ((models: readonly ModelEntry[]) => readonly ContextCap[]) | undefined
 
   const host: Host = {
     async onToolBefore(cb) {
@@ -25,6 +26,9 @@ export function createFakeHost() {
     async agentHasCustomSystem(agentID) {
       return customSystemAgents.has(agentID)
     },
+    async onModels(p) {
+      plan = p
+    },
   }
 
   return {
@@ -39,6 +43,9 @@ export function createFakeHost() {
     },
     async context(e: ContextEvent) {
       for (const cb of contextCbs) await cb(e)
+    },
+    models(entries: readonly ModelEntry[]): readonly ContextCap[] {
+      return plan ? plan(entries) : []
     },
   }
 }

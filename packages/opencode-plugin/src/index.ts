@@ -1,6 +1,7 @@
 // The only file that touches the opencode plugin API. Everything else talks to `Host`.
 import { Plugin } from "@opencode/plugin"
 import type { Host, TextPart } from "./host.ts"
+import { registerLocalContext } from "./local/context.ts"
 import { registerLoopGuard } from "./loop/guard.ts"
 import { parseOptions } from "./options.ts"
 import { registerPrompt } from "./prompt/register.ts"
@@ -48,6 +49,24 @@ export function createHost(ctx: PluginContext): Host {
         return false
       }
     },
+    async onModels(plan) {
+      await ctx.model.transform((models) => {
+        const caps = plan(
+          models.list().map((m) => ({ providerID: m.providerID, id: m.id, context: m.limit?.context })),
+        )
+        for (const cap of caps) {
+          models.update(cap.providerID, cap.id, (draft) => {
+            const input = draft.limit?.input
+            draft.limit = {
+              ...draft.limit,
+              context: cap.context,
+              // input must fit inside the window too.
+              ...(input !== undefined && input > cap.context ? { input: cap.context } : {}),
+            }
+          })
+        }
+      })
+    },
   }
 }
 
@@ -58,5 +77,6 @@ export default Plugin.define({
     const host = createHost(ctx)
     await registerLoopGuard(host, o.loopGuard)
     await registerPrompt(host, o.prompt, o.local)
+    await registerLocalContext(host, o.local)
   },
 })
