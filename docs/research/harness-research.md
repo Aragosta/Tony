@@ -95,7 +95,7 @@ Note: the many V1 guides online use `tool.execute.before` / `experimental.sessio
 | Clearing old tool results (microcompact / context editing) | Claude Code | Images only | **Build**: in the `context` hook, replace old bulky tool outputs with a stub plus a pointer to the saved file. Clear in batches (as opencode does for images) to keep the cache |
 | Verification before "done" | Claude Code (Stop hooks), Copilot instructions | `/goal` + `experimental.idle` | **Build**: a verify plugin that runs project checks on idle and feeds failures back. Bound the loop |
 | Todo list with reminders | Both (`TodoWrite`, `manage_todo_list`) | Opt-in | **Configure**: enable. Add a reminder via `instructions.entry` when todos go stale |
-| Read-only search/explore subagent on a cheap model | Copilot `search_subagent`, Claude Code `Explore` | Subagent tool exists | **Configure**: `agent.transform` → `explore` agent with read-only permissions and a fast model |
+| Read-only search/explore subagent on a cheap model | Copilot `search_subagent`, Claude Code `Explore` | Built-in `explore` agent exists, but uses the main model and allows `shell: *` | **Configure**: `agent.transform` → give `explore` a fast model and restrict its shell to read-only commands |
 | Background summarization | Copilot (`backgroundSummarizer.ts`) | Exists | **Configure**: `experimental.background_compaction: true` |
 | Idle compaction before the cache TTL expires | Claude Code | `warming` keeps the cache alive instead | **Configure**: `warming`. Consider idle-compaction for long sessions |
 | LLM edit healing (fix a failed `oldString` with a side model) | Copilot (`editFileHealing.tsx`) | Fuzzy fallback only | **Later**: `execute.after` on edit error → `ctx.generate` corrected snippet → retry once |
@@ -138,7 +138,7 @@ opencode V2 (pinned)                          ← loop, tools, compaction, subag
 ```
 
 ### Suggested order
-0. **Config only:** enable todo and background compaction, set `warming`, add an `explore` agent, write the permission policy. No code.
+0. **Config only:** enable todo and background compaction, set `warming`, give the built-in `explore` agent a fast model and read-only shell, write the permission policy. No code.
 1. **Eval harness first:** a fixed task set (a repo plus tests that must pass), scored on success rate, total and cached tokens, and steps. Without it, nobody can tell whether a plugin actually helps.
 2. `tony.diagnostics` and `tony.edit-guard`. These have the biggest effect on correctness and are small.
 3. `tony.verify`, built on `experimental.idle`, modelled on `plugin/goal.ts`.
