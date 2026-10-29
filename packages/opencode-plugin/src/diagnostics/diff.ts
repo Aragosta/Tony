@@ -1,5 +1,3 @@
-import { basename } from "node:path"
-
 const MAX_LINES = 20
 
 /** Drops line/column positions so the same problem matches after lines shift. */
@@ -10,13 +8,15 @@ export function normalize(line: string): string {
     .trim()
 }
 
-/** Output lines that mention `file` (its relative path or its name). */
-export function relevantLines(output: string, file: string): string[] {
-  const name = basename(file)
+// Totals change with every new problem and would always look new.
+const SUMMARY = /^(found \d+|\d+ (errors?|problems?|warnings?)\b|all checks passed)/i
+
+/** The checker's output lines, without blank lines and totals. */
+export function problemLines(output: string): string[] {
   return output
     .split("\n")
     .map((l) => l.trimEnd())
-    .filter((l) => l.length > 0 && (l.includes(file) || l.includes(name)))
+    .filter((l) => l.trim().length > 0 && !SUMMARY.test(l.trim()))
 }
 
 /** Lines in `after` that were not already in `before`, compared without positions. */

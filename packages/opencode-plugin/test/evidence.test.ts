@@ -45,7 +45,7 @@ test("own refusals are ignored", async () => {
 
 test("mutation clears failure", async () => {
   const { t, dir } = setup()
-  t.after(failed("read", { path: "x" }, "File not found"), dir)
+  t.after(done("shell", { command: "bun test" }, { metadata: { exit: 1 } }), dir)
   t.after(done("edit", { path: "a.ts" }), dir)
   expect((await t.evidence("s", dir)).lastFailure).toBeUndefined()
 })
@@ -102,4 +102,42 @@ test("shell-changed test files are compared with git HEAD", async () => {
   writeFileSync(join(dir, "y.test.ts"), 'test("a",()=>{})')
   t.addSnapshotFiles("s", ["y.test.ts"])
   expect((await t.evidence("s", dir)).testTampering).toEqual(["y.test.ts: 1 test case(s) removed"])
+})
+
+test("exploratory commands don't count, even with check words in them", async () => {
+  for (const command of ["test -f src/a.ts", "grep -rn test src", "ls tests", "grep -q build package.json", "cat README.md | grep -i 'go '", "git checkout nope", "[ -f x ] && echo make", "find . -name '*.test.ts'"]) {
+    const { t, dir } = setup()
+    t.after(done("shell", { command }, { metadata: { exit: 1 } }), dir)
+    expect([command, (await t.evidence("s", dir)).lastFailure]).toEqual([command, undefined])
+  }
+})
+
+test("check commands count", async () => {
+  for (const command of ["npm run build", "cd pkg && pnpm test", "CI=1 npx vitest run", "cargo test", "go test ./...", "python -m pytest -q", "tsc --noEmit", "make", "bun run lint 2>&1 | tail -5"]) {
+    const { t, dir } = setup()
+    t.after(done("shell", { command }, { metadata: { exit: 1 } }), dir)
+    expect([command, (await t.evidence("s", dir)).lastFailure?.tool]).toEqual([command, "shell"])
+  }
+})
+
+test("lookup tool errors are exploration", async () => {
+  const { t, dir } = setup()
+  t.after(failed("read", { path: "missing.ts" }, "File not found: missing.ts"), dir)
+  t.after(failed("glob", { pattern: "*.x" }, "No files found"), dir)
+  expect((await t.evidence("s", dir)).lastFailure).toBeUndefined()
+})
+
+test("a refused edit that is never redone counts", async () => {
+  const { t, dir } = setup()
+  t.after(failed("write", { path: "test/a.test.ts" }, "Edit refused: read test/a.test.ts before editing it"), dir)
+  expect((await t.evidence("s", dir)).lastFailure?.tool).toBe("write")
+})
+
+test("failure key is the call, not its output", async () => {
+  const { t, dir } = setup()
+  t.after(done("shell", { command: "bun test" }, { content: "run 1", metadata: { exit: 1 } }), dir)
+  const k1 = (await t.evidence("s", dir)).lastFailure?.key
+  expect(k1).toBeDefined()
+  t.after(done("shell", { command: "bun test" }, { content: "run 2", metadata: { exit: 1 } }), dir)
+  expect((await t.evidence("s", dir)).lastFailure?.key).toBe(k1!)
 })

@@ -19,9 +19,10 @@ export const exec: Exec = (command, cwd, timeoutMs) =>
       output = (output + d.toString("utf8")).slice(-OUTPUT_CHARS)
     }
     // Many tools (opencode among them) read $PWD rather than the process cwd.
-    const child = spawn("bash", ["-lc", command], { cwd, detached: true, env: { ...process.env, PWD: cwd } })
-    child.stdout.on("data", keep)
-    child.stderr.on("data", keep)
+    // No stdin, and CI=1 so test runners don't wait for input or start in watch mode.
+    const child = spawn("bash", ["-lc", command], { cwd, detached: true, stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, PWD: cwd, CI: "1" } })
+    child.stdout!.on("data", keep)
+    child.stderr!.on("data", keep)
     const timer = setTimeout(() => {
       timedOut = true
       try {

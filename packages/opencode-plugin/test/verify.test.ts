@@ -49,3 +49,15 @@ test("python with tests dir", () => {
 test("nothing detected", () => {
   expect(detectChecks(dir())).toEqual([])
 })
+
+test("checks get no stdin and run as CI", async () => {
+  const r = await exec("cat; echo CI=$CI", dir(), 3000)
+  expect(r.timedOut).toBe(false)
+  expect(r.output).toContain("CI=1")
+})
+
+test("scripts that rewrite files or watch are not run", () => {
+  const d = dir()
+  writeFileSync(join(d, "package.json"), JSON.stringify({ scripts: { typecheck: "tsc", lint: "eslint --fix .", test: "vitest --watch" } }))
+  expect(detectChecks(d)).toEqual(["npm run typecheck"])
+})

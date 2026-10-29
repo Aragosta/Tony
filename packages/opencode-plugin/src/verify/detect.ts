@@ -10,6 +10,9 @@ function packageManager(dir: string): string {
   return "npm"
 }
 
+// The gate must not rewrite files behind the agent's back or wait on a watcher.
+const UNSAFE_SCRIPT = /--fix\b|--write\b|--watch\b|(^|\s)-w(\s|$)/
+
 function nodeChecks(dir: string): string[] | undefined {
   if (!exists(dir, "package.json")) return undefined
   let scripts: Record<string, unknown> = {}
@@ -21,7 +24,7 @@ function nodeChecks(dir: string): string[] | undefined {
   const pm = packageManager(dir)
   const found = ["typecheck", "lint", "test"].filter((name) => {
     const script = scripts[name]
-    return typeof script === "string" && !(name === "test" && script.includes("no test specified"))
+    return typeof script === "string" && !UNSAFE_SCRIPT.test(script) && !(name === "test" && script.includes("no test specified"))
   })
   return found.length > 0 ? found.map((name) => `${pm} run ${name}`) : undefined
 }

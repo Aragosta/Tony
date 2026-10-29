@@ -32,7 +32,9 @@ interface Reason {
   section: string
 }
 
-const ANNOUNCE = /^(let me|i'll|i will|now i'll|now let me|next,? i'll|i'm going to)\b/i
+// A next step names an action; "I'll wait for your feedback" or "I'll leave that to you" do not.
+const ANNOUNCE =
+  /^(?:(?:now|next|then),?\s+)?(?:let me|i'll|i will|i'm going to|i am going to)\s+(?:(?:now|next|also|then|quickly|go ahead and)\s+)*(?:run|check|add|fix|update|create|write|test|implement|look|verify|read|edit|change|remove|delete|refactor|install|build|try|search|inspect|investigate|open|make|apply|move|rename|start|continue|finish|do|commit|debug|review|clean)\b/i
 
 /** The reply ends by announcing a next step ("Let me run the tests.") rather than reporting a result. */
 export function announcesAction(finalText: string): boolean {
@@ -40,7 +42,7 @@ export function announcesAction(finalText: string): boolean {
   if (text.endsWith(":")) return true
   const sentences = text.split(/(?<=[.!?])\s+/).filter((s) => s.length > 0)
   const last = sentences.at(-1) ?? ""
-  return ANNOUNCE.test(last) && !/^let me know\b/i.test(last)
+  return ANNOUNCE.test(last)
 }
 
 function reasons(input: GateInput): Reason[] {
@@ -50,7 +52,7 @@ function reasons(input: GateInput): Reason[] {
   if (failed) out.push({ key: `checks:${failed.command}`, label: "checks failing", section: checksSection(failed.command, failed.output) })
   if (evidence.lastFailure) {
     const f = evidence.lastFailure
-    out.push({ key: `failure:${f.tool}:${f.summary.slice(0, 200)}`, label: "last action failed", section: failureSection(f) })
+    out.push({ key: `failure:${f.key}`, label: "last action failed", section: failureSection(f) })
   }
   if (evidence.testTampering.length > 0) {
     out.push({ key: `tamper:${evidence.testTampering.join("|")}`, label: "tests changed", section: tamperSection(evidence.testTampering) })

@@ -9,6 +9,8 @@ import { isTestFile, patchFiles, tamperFindings } from "./tamper.ts"
 export interface Failure {
   tool: string
   summary: string
+  /** The failing call's fingerprint: the same call failing again is the same failure. */
+  key: string
 }
 
 export interface TurnEvidence {
@@ -24,18 +26,31 @@ export interface TurnEvidence {
 interface Turn {
   changed: Set<string>
   changeSeq: number
-  lastFailure?: Failure & { key: string }
+  lastFailure?: Failure
   todos: string[]
   /** Test file content before this turn first changed it; null when it did not exist. */
   testBaselines: Map<string, string | null>
 }
 
 const MUTATIONS = new Set(["edit", "write", "patch"])
-// Tony's own refusals: the model was already told what to do about them.
-const OWN_REFUSALS = ["Blocked:", "Stopped:", "Edit refused:"]
-// A failing shell command only counts when it looks like a check, not exploration (`grep` without a match).
-const CHECK_WORDS = ["test", "build", "tsc", "lint", "check", "compile", "make", "cargo", "go ", "pytest", "jest", "vitest", "npm run", "bun run", "pnpm", "yarn"]
+// Loop-guard refusals: the model already has the earlier result. An edit refusal does count: the edit never happened.
+const OWN_REFUSALS = ["Blocked:", "Stopped:"]
+// Lookups that fail are exploration (a file that isn't there), not a broken result.
+const LOOKUPS = new Set(["read", "glob", "grep", "list", "webfetch", "websearch", "question"])
+// A failing shell command counts only when one of its commands runs a build, test or lint tool.
+const RUNNERS = new Set(["npm", "pnpm", "yarn", "bun", "bunx", "npx", "deno", "tsc", "eslint", "biome", "ruff", "mypy", "pyright", "pytest", "jest", "vitest", "mocha", "cargo", "go", "make", "gradle", "gradlew", "mvn", "dotnet", "tox", "nox"])
+const PYTHON_CHECKS = new Set(["pytest", "unittest", "mypy", "ruff", "tox", "compileall"])
 const SUMMARY_CHARS = 1500
+
+/** True when a segment of `command` starts with a check runner: `cd x && bun test` yes, `grep -rn test src` no. */
+export function runsCheck(command: string): boolean {
+  return command.split(/&&|\|\||[;|\n]/).some((segment) => {
+    const words = segment.trim().split(/\s+/).filter((w) => w.length > 0 && !/^\w+=/.test(w))
+    const first = (words[0] ?? "").replace(/^.*\//, "")
+    if (/^python3?$/.test(first)) return words.some((w) => PYTHON_CHECKS.has(w))
+    return RUNNERS.has(first)
+  })
+}
 
 const readOrNull = (path: string) => (existsSync(path) ? readFileSync(path, "utf8") : null)
 
@@ -90,23 +105,24 @@ export class EvidenceTracker {
         .map((x) => String(x.content))
     }
     const failure = this.failureOf(e)
-    if (failure) t.lastFailure = { ...failure, key }
+    if (failure) t.lastFailure = failure
     else if (e.status === "completed" && t.lastFailure?.key === key) t.lastFailure = undefined
   }
 
   private failureOf(e: ToolAfterEvent): Failure | undefined {
-    if (e.tool === "question") return undefined
+    if (LOOKUPS.has(e.tool)) return undefined
+    const key = fingerprint(e.tool, e.input)
     if (e.status === "error") {
       const message = e.error?.message ?? "unknown error"
       if (OWN_REFUSALS.some((p) => message.startsWith(p))) return undefined
-      return { tool: e.tool, summary: message.slice(-SUMMARY_CHARS) }
+      return { tool: e.tool, summary: message.slice(-SUMMARY_CHARS), key }
     }
     if (e.tool !== "shell") return undefined
     const exit = e.result.metadata?.exit
     const command = String(((e.input ?? {}) as { command?: unknown }).command ?? "")
-    if (typeof exit !== "number" || exit === 0 || !CHECK_WORDS.some((w) => command.includes(w))) return undefined
+    if (typeof exit !== "number" || exit === 0 || !runsCheck(command)) return undefined
     const text = resultText(e) ?? ""
-    return { tool: "shell", summary: `\`${command}\` exited with code ${exit}\n${text.slice(-SUMMARY_CHARS)}` }
+    return { tool: "shell", summary: `\`${command}\` exited with code ${exit}\n${text.slice(-SUMMARY_CHARS)}`, key }
   }
 
   addSnapshotFiles(sessionID: string, files: readonly string[]): void {
@@ -128,7 +144,7 @@ export class EvidenceTracker {
     return {
       changedFiles: [...t.changed].sort(),
       changeSeq: t.changeSeq,
-      ...(t.lastFailure ? { lastFailure: { tool: t.lastFailure.tool, summary: t.lastFailure.summary } } : {}),
+      ...(t.lastFailure ? { lastFailure: { ...t.lastFailure } } : {}),
       openTodos: t.todos,
       testTampering,
     }

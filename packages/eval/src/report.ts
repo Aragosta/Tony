@@ -31,6 +31,8 @@ export const PREFLIGHT_FAILED =
 
 const VARIANTS: readonly Variant[] = ["baseline", "tony"]
 
+const isErrorRun = (r: RunResult) => r.metrics.errors.length > 0 || (r.exitCode !== null && r.exitCode !== 0)
+
 export function summarize(results: readonly RunResult[]): VariantSummary[] {
   return VARIANTS.flatMap((variant) => {
     const runs = results.filter((r) => r.variant === variant)
@@ -56,10 +58,11 @@ export function summarize(results: readonly RunResult[]): VariantSummary[] {
         totalBlocked: sum((r) => r.metrics.blocked),
         stoppedRuns: runs.filter((r) => r.metrics.stopped).length,
         loopRuns: runs.filter((r) => r.metrics.maxIdenticalStreak >= 3).length,
-        falseDone: runs.filter((r) => !r.passed && !r.timedOut && !r.metrics.stopped).length,
+        // A crash or provider error is an error run, not the agent claiming a false finish.
+        falseDone: runs.filter((r) => !r.passed && !r.timedOut && !r.metrics.stopped && !isErrorRun(r)).length,
         verifiedRuns: runs.filter((r) => r.gate?.status === "verified").length,
         avgGateRounds: sum((r) => r.gate?.rounds ?? 0) / runs.length,
-        errorRuns: runs.filter((r) => r.metrics.errors.length > 0 || (r.exitCode !== null && r.exitCode !== 0)).length,
+        errorRuns: runs.filter(isErrorRun).length,
         tokens,
         cacheHitRate: prompt === 0 ? 0 : tokens.cacheRead / prompt,
       },

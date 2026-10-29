@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { newProblems, normalize } from "../src/diagnostics/diff.ts"
@@ -72,4 +72,41 @@ test("timeout is skipped", async () => {
   await f.before(edit)
   await f.after({ ...edit, status: "completed", result: {} })
   expect(f.appended).toEqual([])
+})
+
+test("file paths are not shell-expanded", async () => {
+  const f = createFakeHost()
+  const dir = mkdtempSync(join(tmpdir(), "tony-diag-"))
+  f.sessions.set("s", { directory: dir })
+  await registerDiagnostics(f.host, { enabled: true, timeoutMs: 5000, checkers: [{ extensions: [".ts"], command: "echo {file}", requires: "echo" }] })
+  const edit = { tool: "write", sessionID: "s", input: { path: "x$(touch PWNED)`touch PWNED2`'q.ts" } }
+  await f.before(edit)
+  await f.after({ ...edit, status: "completed", result: {} })
+  expect(existsSync(join(dir, "PWNED")) || existsSync(join(dir, "PWNED2"))).toBe(false)
+})
+
+test("new problems in other files are reported", async () => {
+  const { f, edit } = await setup([{ output: "" }, { output: "b.ts(5,1): error TS2554: Expected 2 arguments" }])
+  await f.before(edit)
+  await f.after({ ...edit, status: "completed", result: {} })
+  expect(f.appended[0]).toContain("b.ts(5,1)")
+})
+
+test("a problem is reported once, not on every later edit", async () => {
+  const { f, exec, edit } = await setup([{ output: "" }, { output: "a.ts(5,1): error TS2: new" }, { output: "a.ts(6,1): error TS2: new" }])
+  for (let i = 0; i < 2; i++) {
+    await f.before(edit)
+    await f.after({ ...edit, status: "completed", result: {} })
+  }
+  expect(f.appended.length).toBe(1)
+  expect(exec.calls.length).toBe(3)
+})
+
+test("a timeout turns the checker off for the session", async () => {
+  const { f, exec, edit } = await setup([{ output: "" }, { timedOut: true }])
+  for (let i = 0; i < 2; i++) {
+    await f.before(edit)
+    await f.after({ ...edit, status: "completed", result: {} })
+  }
+  expect(exec.calls.length).toBe(2)
 })

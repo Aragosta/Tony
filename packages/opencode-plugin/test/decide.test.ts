@@ -75,3 +75,17 @@ test("announcement", () => {
 test("let me know is not an announcement", () => {
   expect(announcesAction("Done. Let me know if you need anything else.")).toBe(false)
 })
+
+test("closing lines are not announcements", () => {
+  for (const text of ["I'll leave the deployment to you.", "Done. I will be here if you need more changes.", "Tests pass. I'll wait for your feedback.", "I'll stop here: the remaining step needs your API key.", "Feel free to ask. I'm happy to help further."])
+    expect([text, announcesAction(text)]).toEqual([text, false])
+  expect(announcesAction("Added the flag. Next I'll update the README and add a test.")).toBe(true)
+  expect(announcesAction("Now let me check the other callers.")).toBe(true)
+})
+
+test("same failing call is one reason, whatever its output", () => {
+  const f = (summary: string) => evidence({ lastFailure: { tool: "shell", summary, key: "shell:bun test" } })
+  const d = decide(input({ evidence: f("out 1") }))
+  if (d.kind !== "continue") throw new Error("expected continue")
+  expect(decide(input({ evidence: f("out 2"), seen: new Set(d.keys) })).kind).toBe("stop")
+})

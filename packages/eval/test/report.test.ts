@@ -85,3 +85,8 @@ test("gate outcomes summarized", () => {
   expect(s[0]!.verifiedRuns).toBe(1)
   expect(s[0]!.avgGateRounds).toBe(1)
 })
+
+test("error runs are not false done", () => {
+  const s = summarize([result({ passed: false, metrics: metrics({ errors: ["provider down"] }) }), result({ passed: false, exitCode: 1 })])
+  expect(s[0]!.falseDone).toBe(0)
+})

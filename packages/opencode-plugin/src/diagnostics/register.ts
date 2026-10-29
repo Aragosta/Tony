@@ -4,7 +4,7 @@ import { patchFiles } from "../gate/tamper.ts"
 import type { Host } from "../host.ts"
 import type { DiagnosticChecker, DiagnosticsOptions } from "../options.ts"
 import { exec, type Exec } from "../verify/exec.ts"
-import { formatDiagnostics, newProblems, relevantLines } from "./diff.ts"
+import { formatDiagnostics, newProblems, problemLines } from "./diff.ts"
 
 const MUTATIONS = new Set(["edit", "write", "patch"])
 
@@ -29,6 +29,9 @@ export function available(checker: DiagnosticChecker, dir: string): boolean {
   return checker.requires.includes("/") ? existsSync(join(dir, checker.requires)) : onPath(checker.requires)
 }
 
+/** Single-quoted for bash: nothing inside is expanded. */
+const shellQuote = (s: string) => `'${s.replaceAll("'", `'\\''`)}'`
+
 function touched(tool: string, input: unknown): string[] {
   const i = (input ?? {}) as Record<string, unknown>
   if (tool === "patch") return typeof i.patchText === "string" ? patchFiles(i.patchText).map((f) => f.path) : []
@@ -37,8 +40,9 @@ function touched(tool: string, input: unknown): string[] {
 
 export async function registerDiagnostics(host: Host, opts: DiagnosticsOptions, run: Exec = exec): Promise<void> {
   if (!opts.enabled) return
-  // `${sessionID}\0${file}` -> problem lines before the session's first edit of the file; null = baseline unusable
-  const baselines = new Map<string, string[] | null>()
+  // `${sessionID}\0${command}` -> problem lines at the last run; null = timed out, off for this session.
+  // A project-wide checker (tsc) has one entry per session, so a signature change reports the errors in its callers.
+  const last = new Map<string, string[] | null>()
 
   const check = async (sessionID: string, input: { tool: string; input: unknown }) => {
     const dir = (await host.sessionInfo(sessionID)).directory
@@ -46,28 +50,30 @@ export async function registerDiagnostics(host: Host, opts: DiagnosticsOptions, 
       const rel = relative(dir, isAbsolute(path) ? path : resolve(dir, path))
       const checker = checkerFor(rel, opts.checkers)
       if (!checker || !available(checker, dir)) return []
-      const command = checker.command.replaceAll("{file}", JSON.stringify(rel))
-      return [{ rel, key: `${sessionID}\u0000${rel}`, run: () => run(command, dir, opts.timeoutMs) }]
+      const command = checker.command.replaceAll("{file}", shellQuote(rel))
+      return [{ rel, key: `${sessionID}\u0000${command}`, run: () => run(command, dir, opts.timeoutMs) }]
     })
   }
 
   await host.onToolBefore(async (e) => {
     if (!MUTATIONS.has(e.tool)) return
     for (const c of await check(e.sessionID, e)) {
-      if (baselines.has(c.key)) continue
+      if (last.has(c.key)) continue
       const r = await c.run()
-      baselines.set(c.key, r.timedOut ? null : relevantLines(r.output, c.rel))
+      last.set(c.key, r.timedOut ? null : problemLines(r.output))
     }
   })
 
   await host.onToolAfter(async (e) => {
     if (e.status !== "completed" || !MUTATIONS.has(e.tool)) return
     for (const c of await check(e.sessionID, e)) {
-      const before = baselines.get(c.key)
+      const before = last.get(c.key)
       if (!before) continue
       const r = await c.run()
-      if (r.timedOut) continue
-      const fresh = newProblems(before, relevantLines(r.output, c.rel))
+      const after = r.timedOut ? null : problemLines(r.output)
+      last.set(c.key, after)
+      if (!after) continue
+      const fresh = newProblems(before, after)
       if (fresh.length > 0) e.append(formatDiagnostics(c.rel, fresh))
     }
   })
