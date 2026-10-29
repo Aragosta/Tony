@@ -57,21 +57,23 @@ if (!values["no-preflight"]) {
   }
 }
 
+const outDir = join(tonyHome, "evals/results")
+const stamp = new Date().toISOString().replace(/[:.]/g, "-")
+mkdirSync(outDir, { recursive: true })
 const results: RunResult[] = []
+// Saved after every run, so a crash or Ctrl-C keeps what finished.
+const save = () => writeFileSync(join(outDir, `${stamp}.json`), JSON.stringify(results, null, 2))
 for (let i = 0; i < repeat; i++) {
   for (const task of tasks) {
     for (const variant of variants) {
       const r = await runTask(task, { ...base, variant })
       results.push(r)
+      save()
       console.error(`${task.id} [${variant}] ${r.passed ? "pass" : r.timedOut ? "timeout" : "fail"} (${(r.durationMs / 1000).toFixed(1)}s)`)
     }
   }
 }
 
 const markdown = toMarkdown(summarize(results), results)
-const outDir = join(tonyHome, "evals/results")
-const stamp = new Date().toISOString().replace(/[:.]/g, "-")
-mkdirSync(outDir, { recursive: true })
-writeFileSync(join(outDir, `${stamp}.json`), JSON.stringify(results, null, 2))
 writeFileSync(join(outDir, `${stamp}.md`), markdown)
 console.log(markdown)

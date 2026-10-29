@@ -78,3 +78,40 @@ test("long results are cut", async () => {
   expect(xs.length).toBeLessThanOrEqual(RESULT_EXCERPT_CHARS)
   expect(msg).toContain(xs + "…[truncated]")
 })
+
+test("a new user prompt resets the streak", async () => {
+  const f = await setup()
+  await f.before(call)
+  await f.before(call)
+  await f.prompt("s")
+  await f.before(call)
+})
+
+test("stop pauses the root session, not just the looping subagent", async () => {
+  const f = await setup()
+  f.parents.set("child", "s")
+  const sub = { ...call, sessionID: "child" }
+  for (let i = 0; i < 2; i++) await f.before(sub)
+  for (let i = 0; i < 3; i++) await message(f.before(sub))
+  await new Promise((r) => setTimeout(r, 5))
+  expect(f.interrupts).toEqual(["s"])
+})
+
+test("falls back to structured output when there is no content", async () => {
+  const f = await setup()
+  const search = { tool: "websearch", sessionID: "s", input: { query: "q" } }
+  for (let i = 0; i < 2; i++) {
+    await f.before(search)
+    await f.after({ ...search, status: "completed", result: { output: { hits: ["HIT-1"] } } })
+  }
+  expect(await message(f.before(search))).toContain("HIT-1")
+})
+
+test("an errored call's message is shown as the previous result", async () => {
+  const f = await setup()
+  for (let i = 0; i < 2; i++) {
+    await f.before(call)
+    await f.after({ ...call, status: "error", error: { message: "ERR-1" } })
+  }
+  expect(await message(f.before(call))).toContain("ERR-1")
+})

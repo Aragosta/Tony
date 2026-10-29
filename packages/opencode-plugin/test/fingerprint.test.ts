@@ -21,3 +21,8 @@ test("undefined and nested values do not throw", () => {
   expect(typeof fingerprint("t", undefined)).toBe("string")
   expect(typeof fingerprint("t", { a: [{ b: undefined }] })).toBe("string")
 })
+
+test("indentation in non-shell input is significant", () => {
+  expect(fingerprint("edit", { oldString: "  x = 1" })).not.toBe(fingerprint("edit", { oldString: "    x = 1" }))
+})
+

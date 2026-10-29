@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process"
 import { appendFileSync, existsSync, readFileSync } from "node:fs"
-import { cp, mkdtemp, writeFile } from "node:fs/promises"
-import { tmpdir } from "node:os"
+import { cp, mkdir, mkdtemp, writeFile } from "node:fs/promises"
+import { homedir, tmpdir } from "node:os"
 import { join } from "node:path"
 import type { EvalTask } from "./tasks.ts"
 
@@ -37,9 +37,17 @@ const GIT_ENV = {
   GIT_COMMITTER_EMAIL: "eval@tony",
 }
 
+const SETUP_TIMEOUT_MS = 120_000
+
 function run(dir: string, cmd: string, args: string[]) {
-  const r = spawnSync(cmd, args, { cwd: dir, encoding: "utf8", env: { ...process.env, ...GIT_ENV } })
-  if (r.status !== 0) throw new Error(`${cmd} ${args.join(" ")} failed in ${dir}: ${r.stderr || r.stdout}`)
+  const r = spawnSync(cmd, args, {
+    cwd: dir,
+    encoding: "utf8",
+    env: { ...process.env, ...GIT_ENV },
+    timeout: SETUP_TIMEOUT_MS,
+    killSignal: "SIGKILL",
+  })
+  if (r.status !== 0) throw new Error(`${cmd} ${args.join(" ")} failed in ${dir}: ${r.error?.message ?? (r.stderr || r.stdout)}`)
 }
 
 /** Copies the task's fixture repo into a temp dir, writes the config, commits, then runs `setup`. */
@@ -57,3 +65,27 @@ export async function prepareWorkspace(task: EvalTask, config: Record<string, un
   return dir
 }
 
+
+// Keys of the user's global config that change agent behaviour. Dropping them makes both variants start from plain
+// opencode, so a globally installed Tony can't leak into the baseline.
+const BEHAVIOUR_KEYS = ["plugins", "agents", "experimental"]
+
+/**
+ * Creates a temp XDG_CONFIG_HOME holding a copy of the user's global opencode config without BEHAVIOUR_KEYS.
+ * Providers, models and other settings still apply. Credentials live in the data dir and are not affected.
+ */
+export async function isolatedConfigHome(): Promise<string> {
+  const source = join(process.env.XDG_CONFIG_HOME || join(homedir(), ".config"), "opencode")
+  const home = await mkdtemp(join(tmpdir(), "tony-eval-config-"))
+  await mkdir(join(home, "opencode"))
+  if (existsSync(join(source, "opencode.jsonc"))) {
+    throw new Error(`${source}/opencode.jsonc is not supported by the eval; use opencode.json`)
+  }
+  const file = join(source, "opencode.json")
+  if (existsSync(file)) {
+    const config = JSON.parse(readFileSync(file, "utf8"))
+    for (const key of BEHAVIOUR_KEYS) delete config[key]
+    await writeFile(join(home, "opencode", "opencode.json"), JSON.stringify(config, null, 2))
+  }
+  return home
+}

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto"
 import type { Host, ToolAfterEvent } from "../host.ts"
 import type { LoopGuardOptions } from "../options.ts"
 import { LoopDetector } from "./detector.ts"
@@ -17,44 +18,62 @@ export function stopMessage(tool: string, count: number): string {
   return `Stopped: \`${tool}\` was called with identical input ${count} times in a row. Execution is paused so the user can steer.`
 }
 
+/** What the model saw from the call: text content, else structured output, else the error message. */
 function resultText(e: ToolAfterEvent): string | undefined {
-  if (e.status !== "completed") return undefined
-  const content = e.result.content
-  if (content === undefined) return undefined
+  if (e.status === "error") return e.error?.message
+  const { content, output } = e.result
   if (typeof content === "string") return content
-  return content
-    .filter((p) => typeof p.text === "string")
-    .map((p) => p.text)
-    .join("\n")
+  const parts = (content ?? []).filter((p) => typeof p.text === "string").map((p) => p.text)
+  if (parts.length > 0) return parts.join("\n")
+  if (output === undefined) return undefined
+  return typeof output === "string" ? output : JSON.stringify(output)
 }
+
+// Inputs can be whole files (write, patch); keep a short digest instead.
+const keyOf = (tool: string, input: unknown) => createHash("sha1").update(fingerprint(tool, input)).digest("hex")
 
 export async function registerLoopGuard(host: Host, opts: LoopGuardOptions): Promise<void> {
   if (!opts.enabled) return
   const detector = new LoopDetector(opts)
-  const lastResults = new Map<string, string>()
+  // Only the latest result per session can be quoted: a block always follows a run of the same key.
+  const lastResults = new Map<string, { key: string; text: string }>()
   const exempt = new Set(opts.exemptTools)
   const mutations = new Set(opts.mutationTools)
 
   await host.onToolBefore((e) => {
     if (exempt.has(e.tool)) return
-    const key = fingerprint(e.tool, e.input)
+    const key = keyOf(e.tool, e.input)
     const verdict = detector.record(e.sessionID, key)
     if (verdict.kind === "block") {
-      throw new Error(blockMessage(e.tool, verdict.count, lastResults.get(`${e.sessionID}\u0000${key}`)))
+      const last = lastResults.get(e.sessionID)
+      throw new Error(blockMessage(e.tool, verdict.count, last?.key === key ? last.text : undefined))
     }
     if (verdict.kind === "stop") {
       detector.reset(e.sessionID)
-      // Never await the interrupt inside the hook: the run is waiting on this hook.
-      setTimeout(() => void host.interrupt(e.sessionID), 0)
+      // Pause the top-level session: interrupting only a subagent just hands "cancelled" back to its parent.
+      // Never awaited inside the hook: the run is waiting on this hook.
+      setTimeout(() => {
+        host
+          .rootSession(e.sessionID)
+          .then((root) => host.interrupt(root))
+          .catch(() => {})
+      }, 0)
       throw new Error(stopMessage(e.tool, verdict.count))
     }
   })
 
   await host.onToolAfter((e) => {
-    if (e.status !== "completed") return
-    if (mutations.has(e.tool)) detector.markMutation(e.sessionID)
+    if (e.status === "completed" && mutations.has(e.tool)) detector.markMutation(e.sessionID)
     const text = resultText(e)
     // Keep only what blockMessage can show, so large outputs are not held in memory.
-    if (text !== undefined) lastResults.set(`${e.sessionID}\u0000${fingerprint(e.tool, e.input)}`, text.slice(0, RESULT_EXCERPT_CHARS + 1))
+    if (text !== undefined) {
+      lastResults.set(e.sessionID, { key: keyOf(e.tool, e.input), text: text.slice(0, RESULT_EXCERPT_CHARS + 1) })
+    }
+  })
+
+  // A new prompt means the user (or the world) may have changed things; repeating a check is legitimate again.
+  await host.onPrompt((e) => {
+    detector.reset(e.sessionID)
+    lastResults.delete(e.sessionID)
   })
 }

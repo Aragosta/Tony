@@ -55,3 +55,36 @@ test("opencode sees the workspace as $PWD", async () => {
   const r = await runTask(makeTask("test -f done.txt"), { ...opts, opencodeBin: pwdFake })
   expect(r.passed).toBe(true)
 })
+
+test("runs see the user's global config without plugins, agents or experimental", async () => {
+  const home = mkdtempSync(join(tmpdir(), "tony-xdg-"))
+  mkdirSync(join(home, "opencode"))
+  writeFileSync(
+    join(home, "opencode", "opencode.json"),
+    JSON.stringify({
+      plugins: [{ package: "/somewhere/tony/packages/opencode-plugin" }],
+      agents: { build: { steps: 150 } },
+      experimental: { todo: true },
+      providers: { llamacpp: { name: "x" } },
+      model: "llamacpp/local",
+    }),
+  )
+  const saved = process.env.XDG_CONFIG_HOME
+  process.env.XDG_CONFIG_HOME = home
+  try {
+    const pwdFake = fileURLToPath(new URL("./fixtures/fake-opencode-pwd.ts", import.meta.url))
+    const r = await runTask(makeTask("cat global-seen.json"), { ...opts, opencodeBin: pwdFake })
+    expect(JSON.parse(r.checkOutput)).toEqual({ providers: { llamacpp: { name: "x" } }, model: "llamacpp/local" })
+  } finally {
+    if (saved === undefined) delete process.env.XDG_CONFIG_HOME
+    else process.env.XDG_CONFIG_HOME = saved
+  }
+})
+
+test("a hanging check times out and fails the run", async () => {
+  const start = Date.now()
+  const r = await runTask(makeTask("sleep 10"), opts)
+  expect(r.passed).toBe(false)
+  expect(r.checkOutput).toContain("check timed out")
+  expect(Date.now() - start).toBeLessThan(5000)
+})

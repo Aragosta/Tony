@@ -22,9 +22,9 @@ export function createHost(ctx: PluginContext): Host {
                 sessionID: e.sessionID,
                 input: e.input,
                 status: "completed",
-                result: { content: e.result.content as string | ReadonlyArray<TextPart> | undefined },
+                result: { content: e.result.content as string | ReadonlyArray<TextPart> | undefined, output: e.result.output },
               }
-            : { tool: e.tool, sessionID: e.sessionID, input: e.input, status: "error" },
+            : { tool: e.tool, sessionID: e.sessionID, input: e.input, status: "error", error: { message: e.error.message } },
         ),
       )
     },
@@ -38,6 +38,22 @@ export function createHost(ctx: PluginContext): Host {
           tools: e.tools,
         }),
       )
+    },
+    async onPrompt(cb) {
+      await ctx.session.hook("prompt", (e) => cb({ sessionID: e.sessionID }))
+    },
+    async rootSession(sessionID) {
+      let id = sessionID
+      // Bounded walk up parentID; a lookup failure falls back to the deepest session found.
+      for (let depth = 0; depth < 16; depth++) {
+        const parent = await ctx.session
+          .get({ sessionID: id })
+          .then((s) => s.parentID)
+          .catch(() => undefined)
+        if (!parent) break
+        id = parent
+      }
+      return id
     },
     async interrupt(sessionID) {
       await ctx.session.interrupt({ sessionID })

@@ -32,3 +32,9 @@ test("registerLocalContext wires the plan", async () => {
     { providerID: "ollama", id: "q", context: 131072 },
   ])
 })
+
+test("zero context counts as unknown", () => {
+  expect(planContextCaps([{ providerID: "ollama", id: "z", context: 0 }], local)).toEqual([
+    { providerID: "ollama", id: "z", context: 131072 },
+  ])
+})

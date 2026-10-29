@@ -1,1 +1,1 @@
-{ "prompt": "The range tests fail. Fix the bug.", "check": "bun test" }
+{"prompt": "The range tests fail. Fix the bug.", "check": "git diff --quiet HEAD -- test && bun test"}
