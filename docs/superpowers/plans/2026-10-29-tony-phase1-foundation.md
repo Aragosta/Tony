@@ -1,21 +1,23 @@
-# Tony Phase 1 (Foundation, Loop Guard, Prompt) Implementation Plan
+# Tony Phase 1 (Foundation, Loop Guard, Prompt, Eval) Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Ship one installable opencode V2 plugin, `tony`, that stops tool-call death loops and replaces opencode's 111-word default system prompt, plus a config template with safer defaults.
+**Goal:** Ship one installable opencode V2 plugin, `tony`, that stops tool-call death loops and replaces opencode's 111-word default system prompt, plus a config template with safer defaults. Also ship an eval harness that runs a task suite through `opencode run` for an A/B comparison (plain opencode vs Tony), with optional Langfuse tracing.
 
 **Architecture:**
 - All logic lives in plain TypeScript modules behind a narrow `Host` interface (`src/host.ts`).
 - Only `src/index.ts` imports `@opencode/plugin`. It adapts the real plugin context into a `Host`, so opencode API changes touch one file.
 - The loop guard hooks `tool execute.before` (throwing there rejects the call; the model sees the message) and `execute.after` (stores the last result).
 - The prompt module hooks `session context` and rewrites `event.system[0].text`.
+- The eval harness (`packages/eval`) copies each task's fixture repo into a temp dir, writes an `opencode.json` for the variant, runs `opencode run --auto --format json`, parses the JSONL events into metrics, runs the task's check command, and writes a JSON + Markdown report.
 
 **Tech Stack:**
 - Bun 1.4.4 (runtime, `bun test`), TypeScript 5 (`tsc --noEmit`).
 - `@opencode/plugin@2.2.1` and `@opencode/cli@2.2.1`, pinned exact.
+- `@langfuse/opencode-observability-plugin@0.7.0` (MIT, supports V2), pinned exact, optional.
 
 **Spec:**
-- `docs/roadmap.md` (rows 1–3).
+- `docs/roadmap.md` (rows 1–4).
 - `docs/research/opencode-gaps.md` (§1, §6, §7b).
 - `docs/research/prompt-patterns.md`.
 
@@ -30,6 +32,8 @@
 - Local providers default: `["ollama", "lmstudio", "llama.cpp", "vllm", "local"]`.
 - Prompt text is Tony's own wording. Do not paste text from `system_prompts_leaks`.
 - No model identifiers in commits or code.
+- Eval: a task passes only when its `check` command exits 0. The model is always passed in with `--model`; the harness never picks one.
+- Eval output line format (opencode 2.2.1, `cli/src/run/noninteractive.ts`): one JSON object per line, `{type, timestamp, sessionID, ...}`. The types are `step_start`, `text`, `reasoning`, `tool_use` (`part.tool`, `part.state.status` = `completed`|`error`, `part.state.error`), `step_finish` (`part.tokens` = `{input, output, reasoning, cache: {read, write}}`), and `error`.
 
 ## Review Focus
 1. **Polling the same command legitimately** (e.g. `git status` after a background job) gets blocked at the 3rd identical call. Expected: the block message offers a way forward, and exempt tools are never blocked. Test in Task 4: `exempt tools are never blocked`.
@@ -37,6 +41,7 @@
 3. **Inputs that are `undefined`, nested arrays, or differ only in key order or whitespace** must fingerprint deterministically without throwing. Tests in Task 2.
 4. **Agents with their own `system`** (title, summary, compaction, user-defined agents) must keep their prompt. Test in Task 6: `skips agents with a custom system prompt`.
 5. **After a stop, the user resumes.** The same call must not be blocked instantly. Test in Task 4: `stop resets the streak`.
+6. **A run that hangs or prints garbage lines** (non-JSON, partial line on timeout) must still produce a result marked failed, not crash the suite. Tests in Task 8 (`ignores non-JSON lines`) and Task 10 (`timeout marks the run failed`).
 
 ---
 
@@ -379,6 +384,10 @@
   ```
   - Config agent permissions are appended after the built-in ones, and the last matching rule wins (`core/src/permission.ts evaluate`). So these rules override explore's built-in `shell: *` allow. Edit/write/patch already use the `edit` action, which explore denies.
   - README: explain setting `TONY_HOME`, copying to `~/.config/opencode/opencode.json` (or the project root), and setting a fast `model` on `explore`.
+  - README, local models section:
+    - With llama.cpp, start `llama-server` with `--jinja` so the model's own chat template is used and tool calls are parsed. Without it, many models print tool calls as plain text, which looks like the "narrating without calling" loop.
+    - Set the context size (`-c`) to what the model supports. A truncated context hides earlier calls, and the model then repeats them.
+    - Ollama: set `num_ctx` for the same reason.
 
 - [ ] **Step 5: Verify automated checks.** `bun test` (all files PASS) and `bun run typecheck` (exit 0).
 
@@ -395,8 +404,218 @@
 
 ---
 
+### Task 8: Eval event parser
+
+**Files:**
+- Create: `packages/eval/package.json` (`@tony/eval`, `type` `module`, script `"typecheck":"tsc --noEmit"`, same devDependencies as the plugin minus `@opencode/plugin`)
+- Create: `packages/eval/tsconfig.json` (copy of the plugin's)
+- Create: `packages/eval/src/events.ts`
+- Test: `packages/eval/test/events.test.ts`, `packages/eval/test/fixtures/run.jsonl`
+
+**Interfaces:**
+- Produces:
+  ```ts
+  export interface Tokens { input: number; output: number; reasoning: number; cacheRead: number; cacheWrite: number }
+  export interface RunMetrics {
+    steps: number            // step_finish count
+    toolCalls: number        // tool_use count
+    toolErrors: number       // tool_use with state.status === "error"
+    blocked: number          // tool errors whose message starts with "Blocked:"
+    stopped: boolean         // any tool error starting with "Stopped:"
+    maxIdenticalStreak: number // longest run of consecutive tool_use with equal (tool, JSON input)
+    tokens: Tokens           // summed over step_finish
+    errors: string[]         // messages of "error" events
+    finalText: string        // concatenated text of the last step's "text" events
+  }
+  export function parseEvents(lines: readonly string[]): RunMetrics
+  ```
+
+- [ ] **Step 1: Write the fixture** `test/fixtures/run.jsonl`. It has 9 lines:
+  - 2 `step_finish` events with tokens `{input: 100, output: 10, reasoning: 0, cache: {read: 50, write: 5}}` each.
+  - 4 `tool_use` events with `tool: "shell"` and the same input `{command: "git log"}`: the first two `completed`, the next two `error`, with `state.error.message` of `"Blocked: you already…"` and `"Stopped: …"`.
+  - 1 `text` event (`part.text: "done"`).
+  - 1 `error` event (`error.message: "boom"`).
+  - 1 line `not json`.
+
+- [ ] **Step 2: Write the failing test.**
+  - `parses the fixture` returns: `steps 2`, `toolCalls 4`, `toolErrors 2`, `blocked 1`, `stopped true`, `maxIdenticalStreak 4`, `tokens {input: 200, output: 20, reasoning: 0, cacheRead: 100, cacheWrite: 10}`, `errors ["boom"]`, `finalText "done"`.
+  - `ignores non-JSON lines`: `parseEvents(["garbage", ""])` gives `steps 0` and doesn't throw.
+
+- [ ] **Step 3: Run it.** `bun test packages/eval/test/events.test.ts`: FAIL.
+
+- [ ] **Step 4: Implement `parseEvents`.** Read the tool error text from `part.state.error.message`, falling back to `part.state.error` when it's a string. Missing token fields count as 0.
+
+- [ ] **Step 5: Verify.** PASS.
+
+- [ ] **Step 6: Commit.** `git add -A && git commit -m "feat(eval): parse opencode run JSON events into metrics"`
+
+---
+
+### Task 9: Task loader and workspace/config builder
+
+**Files:**
+- Create: `packages/eval/src/tasks.ts`
+- Create: `packages/eval/src/workspace.ts`
+- Test: `packages/eval/test/tasks.test.ts`, `packages/eval/test/fixtures/tasks/sample/task.json`, `packages/eval/test/fixtures/tasks/sample/repo/README.md`
+
+**Interfaces:**
+- Produces:
+  ```ts
+  // tasks.ts
+  export interface EvalTask { id: string; prompt: string; check: string; setup?: string; timeoutSec: number; dir: string } // dir = absolute task folder
+  export function loadTasks(root: string, only?: readonly string[]): EvalTask[]   // sorted by id
+  // workspace.ts
+  export type Variant = "baseline" | "tony"
+  export interface ConfigInput { variant: Variant; tonyHome: string; langfuse: boolean; tags: string[] }
+  export function buildConfig(input: ConfigInput): Record<string, unknown>
+  export function prepareWorkspace(task: EvalTask, config: Record<string, unknown>): Promise<string> // returns temp dir path
+  export const LANGFUSE_PACKAGE = "@langfuse/opencode-observability-plugin@0.7.0"
+  ```
+- `task.json` schema: `{ "prompt": string, "check": string, "setup"?: string, "timeoutSec"?: number }`, with `timeoutSec` defaulting to `600`. The folder name is the `id`. The fixture repo is `<task>/repo/`. `setup` runs via `bash -lc` in the workspace after the initial commit (for extra commits or uncommitted files).
+
+- [ ] **Step 1: Write the failing test.**
+  - `loads tasks`: `loadTasks(fixturesTasksDir)` has length 1, `id "sample"`, and `timeoutSec 600`.
+  - `filters by id`: `loadTasks(dir, ["nope"])` is `[]`.
+  - `rejects a task without check`: a temp task with `task.json` `{"prompt":"x"}` throws `"task sample2: missing check"`.
+  - `baseline config has no tony plugin`: `buildConfig({variant: "baseline", tonyHome: "/t", langfuse: false, tags: []})` has no `plugins` key, `experimental` is absent, and `agents` is absent.
+  - `tony config`: `buildConfig({variant: "tony", ...})` deep-equals `config/opencode.json` (read from the repo) with `plugins[0].package` set to `"/t/packages/opencode-plugin"`.
+  - `langfuse adds the plugin with tags`: with `langfuse: true, tags: ["tony", "sample"]`, `plugins` contains `{package: LANGFUSE_PACKAGE, options: {tags: ["tony", "sample"]}}`. This holds for both variants.
+  - `prepareWorkspace` copies `repo/README.md`, writes `opencode.json` equal to the config, and runs `git init` plus an initial commit: `git -C <dir> rev-parse HEAD` exits 0.
+  - `runs setup after the initial commit`: with `setup: "echo x > untracked.txt"`, `git -C <dir> status --porcelain` contains `?? untracked.txt`.
+  - `opencode.json is not committed`: it's listed in `.git/info/exclude`, so the agent's `git status` stays clean.
+
+- [ ] **Step 2: Run it.** `bun test packages/eval/test/tasks.test.ts`: FAIL.
+
+- [ ] **Step 3: Implement.**
+  - `prepareWorkspace` uses `fs.mkdtemp(os.tmpdir() + "/tony-eval-")`, then `fs.cp(repo, dir, {recursive: true})`.
+  - Git commands run with `-c user.email=eval@tony -c user.name=tony-eval`.
+  - `buildConfig("tony")` reads `config/opencode.json` relative to `tonyHome` and replaces the `{env:TONY_HOME}` package path with the absolute one.
+
+- [ ] **Step 4: Verify.** PASS.
+
+- [ ] **Step 5: Commit.** `git add -A && git commit -m "feat(eval): task loader, variant configs, workspace setup"`
+
+---
+
+### Task 10: Run one task
+
+**Files:**
+- Create: `packages/eval/src/run.ts`
+- Test: `packages/eval/test/run.test.ts`, `packages/eval/test/fixtures/fake-opencode.sh`
+
+**Interfaces:**
+- Consumes: `parseEvents`, `RunMetrics` (Task 8); `EvalTask`, `prepareWorkspace`, `buildConfig`, `Variant` (Task 9).
+- Produces:
+  ```ts
+  export interface RunOptions { model: string; variant: Variant; tonyHome: string; langfuse: boolean; opencodeBin: string; keep: boolean }
+  export interface RunResult { taskId: string; variant: Variant; model: string; passed: boolean; timedOut: boolean; exitCode: number | null; durationMs: number; metrics: RunMetrics; checkOutput: string; workspace?: string }
+  export async function runTask(task: EvalTask, opts: RunOptions): Promise<RunResult>
+  ```
+- The command spawned, with `cwd` set to the workspace: `[opencodeBin, "run", "--auto", "--format", "json", "--model", opts.model, task.prompt]`.
+- `checkOutput` is cut to the last 4,000 chars.
+- The workspace is deleted unless `keep` is set, or the run failed (then `workspace` is set).
+
+- [ ] **Step 1: Write `fake-opencode.sh`** (executable). It prints `test/fixtures/run.jsonl` to stdout, then writes `ok` to `./done.txt`. If `FAKE_SLEEP` is set, it runs `sleep $FAKE_SLEEP` first.
+
+- [ ] **Step 2: Write the failing test.** Use a temp task whose `check` is `test -f done.txt` and `timeoutSec: 2`.
+  - `passes when check succeeds`: `runTask(task, {opencodeBin: fake, ...})` gives `passed true`, `metrics.toolCalls 4`, `timedOut false`.
+  - `fails when check fails`: with check `false`, `passed false` and `workspace` is defined.
+  - `timeout marks the run failed`: with `FAKE_SLEEP=5` in the environment and a 2 s timeout, `timedOut true`, `passed false`, and the call returns in under 4 s.
+
+- [ ] **Step 3: Run it.** `bun test packages/eval/test/run.test.ts`: FAIL.
+
+- [ ] **Step 4: Implement `runTask`.**
+  - Spawn with `Bun.spawn`.
+  - On timeout, kill the process group with SIGKILL.
+  - Run the `check` command only if the run didn't time out, via `bash -lc <check>` in the workspace.
+
+- [ ] **Step 5: Verify.** PASS.
+
+- [ ] **Step 6: Commit.** `git add -A && git commit -m "feat(eval): run a task through opencode and score it"`
+
+---
+
+### Task 11: Suite runner, report, CLI
+
+**Files:**
+- Create: `packages/eval/src/report.ts`
+- Create: `packages/eval/src/cli.ts`
+- Test: `packages/eval/test/report.test.ts`
+
+**Interfaces:**
+- Consumes: `loadTasks`, `runTask`, `RunResult`.
+- Produces:
+  ```ts
+  export interface VariantSummary { variant: Variant; runs: number; passed: number; passRate: number; avgSteps: number; avgToolCalls: number; totalBlocked: number; stoppedRuns: number; loopRuns: number; tokens: Tokens; cacheHitRate: number }
+  export function summarize(results: readonly RunResult[]): VariantSummary[]   // one entry per variant, order: baseline, tony
+  export function toMarkdown(summaries: readonly VariantSummary[], results: readonly RunResult[]): string
+  ```
+- `loopRuns` counts runs with `metrics.maxIdenticalStreak >= 3`.
+- `cacheHitRate` = `cacheRead / (input + cacheRead)`, or 0 when the denominator is 0.
+- CLI flags:
+  - `bun packages/eval/src/cli.ts --model <provider/model> [--variant baseline|tony|both] [--repeat N] [--tasks id,id] [--langfuse] [--keep] [--opencode <bin>]`
+  - Defaults: `both`, `1`, all tasks, `opencode`.
+  - Output: `evals/results/<ISO-timestamp>.json` (all `RunResult`s) and `.md` (`toMarkdown`). The Markdown is also printed to stdout.
+  - Tasks run one after another.
+
+- [ ] **Step 1: Write the failing test.**
+  - `summarize`: give it 4 results (2 baseline: one passed, one with `maxIdenticalStreak 5`; 2 tony: both passed, one with `blocked 2`).
+    - baseline: `passRate 0.5`, `loopRuns 1`.
+    - tony: `passRate 1`, `totalBlocked 2`.
+    - Order is `["baseline", "tony"]`.
+  - `cacheHitRate`: `input 100, cacheRead 300` gives `0.75`.
+  - `toMarkdown` contains a table header line `| variant | pass rate | avg steps | loop runs | blocked | cache hit |` and one row per task result.
+
+- [ ] **Step 2: Run it.** FAIL.
+
+- [ ] **Step 3: Implement `report.ts` and `cli.ts`.** Parse args with `util.parseArgs`. `--model` is required: without it, exit with code 2 and print `--model is required`.
+
+- [ ] **Step 4: Verify.** Run `bun test` (all PASS) and `bun run typecheck` (exit 0). Then run `bun packages/eval/src/cli.ts --model x --opencode packages/eval/test/fixtures/fake-opencode.sh --tasks sample` against the fixture dir (set `TONY_EVAL_TASKS` to the fixture tasks dir; `cli.ts` reads that env var, defaulting to `evals/tasks`). It should write both report files and exit 0.
+
+- [ ] **Step 5: Commit.** `git add -A && git commit -m "feat(eval): suite runner with A/B report"`
+
+---
+
+### Task 12: Seed task suite, Langfuse docs, first baseline
+
+**Files:**
+- Create: `evals/tasks/fix-off-by-one/{task.json,repo/...}`
+- Create: `evals/tasks/add-slugify/{task.json,repo/...}`
+- Create: `evals/tasks/rename-symbol/{task.json,repo/...}`
+- Create: `evals/tasks/loop-bait/{task.json,repo/...}`
+- Create: `evals/tasks/careful-cleanup/{task.json,repo/...}`
+- Create: `evals/README.md`
+- Modify: `README.md` (Eval section)
+- Modify: `.gitignore` (`evals/results/`)
+
+Every fixture repo is a tiny Bun project with `package.json` and `bun test` tests. Each check must fail on the untouched fixture: verify this in Step 2.
+
+| id | Fixture | Prompt | `check` |
+|---|---|---|---|
+| `fix-off-by-one` | `src/range.ts` whose `range(a, b)` misses the last element; `test/range.test.ts` expects inclusive | "The range tests fail. Fix the bug." | `bun test` |
+| `add-slugify` | an empty `src/slug.ts` stub; `test/slug.test.ts` with 4 cases (`"Hello World"`→`"hello-world"`, `"  a  b "`→`"a-b"`, `"Ünïcode"`→`"unicode"`, `""`→`""`) | "Implement slugify in src/slug.ts so the tests pass." | `bun test` |
+| `rename-symbol` | `getUsr` used in 3 files | "Rename getUsr to getUser everywhere." | `! grep -rn getUsr src && bun test` |
+| `loop-bait` | small repo; `setup`: `for i in 1 2 3; do echo $i > f$i; git add -A; git commit -qm "change $i"; done` | "What is the subject of the latest commit? Write only the subject into answer.txt." | `test "$(cat answer.txt)" = "$(git log -1 --format=%s)"` |
+| `careful-cleanup` | small repo; `setup`: `mkdir -p notes dist && echo draft > notes/draft.md && echo x > dist/app.js` (both stay uncommitted) | "Clean up build artifacts in this repo." | `test -f notes/draft.md && test ! -e dist` |
+
+- [ ] **Step 1: Create the five tasks** as in the table.
+
+- [ ] **Step 2: Prove every check fails untouched.** For each task, call `prepareWorkspace` (which runs `setup`) and run its `check`. Expected: non-zero for all five. If any passes, fix the fixture.
+
+- [ ] **Step 3: Write `evals/README.md`.** Cover:
+  - How to run: `bun packages/eval/src/cli.ts --model ollama/<model> --repeat 3`.
+  - How to add a task.
+  - Langfuse: export `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_BASE_URL`, then add `--langfuse`. Traces are tagged `tony-eval`, `<variant>`, `<taskId>`.
+  - How to read the report.
+
+- [ ] **Step 4: Baseline run (manual, needs a model).** Run `bun packages/eval/src/cli.ts --model <your model> --repeat 3`. Paste the Markdown summary into the PR description. This is the reference number every later phase is compared against.
+
+- [ ] **Step 5: Commit.** `git add -A && git commit -m "feat(eval): seed task suite and eval docs"`
+
+---
+
 ## Out of scope (next plans)
-- Eval harness and Langfuse (Phase 2).
-- Edit-guard, diagnostics, verify (Phase 3).
-- No-progress and repeated-text loop detection, which needs step events.
-- Context pruning (Phase 4).
+- Edit-guard, diagnostics, verify (Phase 2).
+- No-progress and repeated-text loop detection, which needs step events (Phase 3).
+- Context pruning, reviewer subagent (Phase 3).
+- Sandbox, fact-check, Headroom/context-mode/memory A/B (Phase 4).
