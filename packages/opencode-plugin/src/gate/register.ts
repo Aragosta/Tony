@@ -2,6 +2,7 @@ import type { Host, IdleEvent } from "../host.ts"
 import type { GateOptions } from "../options.ts"
 import type { Exec } from "../verify/exec.ts"
 import { decide, type CheckRun, type GateStatus } from "./decide.ts"
+import { checkAliases } from "../verify/detect.ts"
 import type { EvidenceTracker } from "./evidence.ts"
 import { judgeMessage, judgePrompt, parseVerdict } from "./judge.ts"
 import { writeStatus, type StatusRecord } from "./status.ts"
@@ -19,11 +20,18 @@ interface GateState {
   checkedSeq: number
 }
 
-/** Runs the checks in order within one time budget; stops at the first failure or timeout. */
-async function runChecks(exec: Exec, commands: readonly string[], dir: string, budgetMs: number): Promise<CheckRun[]> {
+/**
+ * Runs the checks in order within one time budget; stops at the first failure or timeout. A check the agent already
+ * passed after its last change (`passed`, normalized) is not run again.
+ */
+async function runChecks(exec: Exec, commands: readonly string[], dir: string, budgetMs: number, passed: readonly string[]): Promise<CheckRun[]> {
   const deadline = Date.now() + budgetMs
   const runs: CheckRun[] = []
   for (const command of commands) {
+    if (checkAliases(command, dir).some((a) => passed.includes(a))) {
+      runs.push({ command, ok: true, output: "", reused: true })
+      continue
+    }
     const left = deadline - Date.now()
     if (left <= 0) {
       runs.push({ command, ok: false, output: "", skipped: true })
@@ -53,7 +61,13 @@ export async function registerGate(host: Host, opts: GateOptions, deps: GateDeps
     if (!s) states.set(sessionID, (s = { rounds: 0, seen: new Set(), checks: [], checkedSeq: 0 }))
     return s
   }
-  const directory = async (sessionID: string) => (await host.sessionInfo(sessionID)).directory
+  // A session's directory doesn't change; look it up once, not on every tool call.
+  const directories = new Map<string, string>()
+  const directory = async (sessionID: string) => {
+    let d = directories.get(sessionID)
+    if (!d) directories.set(sessionID, (d = (await host.sessionInfo(sessionID)).directory))
+    return d
+  }
 
   await host.onPrompt((e) => {
     deps.tracker.beginTurn(e.sessionID)
@@ -94,7 +108,7 @@ export async function registerGate(host: Host, opts: GateOptions, deps: GateDeps
     const evidence = await deps.tracker.evidence(e.sessionID, info.directory)
     const commands = opts.checks.length > 0 ? opts.checks : deps.detect(info.directory)
     if (commands.length > 0 && evidence.changeSeq > st.checkedSeq) {
-      st.checks = await runChecks(deps.exec, commands, info.directory, opts.checkTimeoutMs)
+      st.checks = await runChecks(deps.exec, commands, info.directory, opts.checkTimeoutMs, evidence.passedChecks)
       st.checkedSeq = evidence.changeSeq
     }
 
@@ -138,7 +152,7 @@ export async function registerGate(host: Host, opts: GateOptions, deps: GateDeps
       sessionID: e.sessionID,
       status,
       rounds: st.rounds,
-      checks: st.checks.map((c) => ({ command: c.command, ok: c.ok, ...(c.skipped ? { skipped: true } : {}) })),
+      checks: st.checks.map((c) => ({ command: c.command, ok: c.ok, ...(c.skipped ? { skipped: true } : {}), ...(c.reused ? { reused: true } : {}) })),
       pending,
       testsChanged: evidence.testTampering,
       ...(judge ? { judge } : {}),

@@ -4,6 +4,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import type { ToolAfterEvent } from "../src/host.ts"
 import { EvidenceTracker } from "../src/gate/evidence.ts"
+import { normalizeCheck } from "../src/verify/detect.ts"
 
 const setup = () => ({ t: new EvidenceTracker(), dir: mkdtempSync(join(tmpdir(), "tony-ev-")) })
 const done = (tool: string, input: unknown, extra: Partial<{ content: string; metadata: Record<string, unknown> }> = {}): ToolAfterEvent => ({
@@ -91,7 +92,7 @@ test("beginTurn resets", async () => {
   t.after(done("edit", { path: "a.ts" }), dir)
   t.beginTurn("s")
   const e = await t.evidence("s", dir)
-  expect(e).toEqual({ changedFiles: [], changeSeq: 0, openTodos: [], testTampering: [] })
+  expect(e).toEqual({ changedFiles: [], changeSeq: 0, openTodos: [], testTampering: [], passedChecks: [] })
 })
 
 test("shell-changed test files are compared with git HEAD", async () => {
@@ -129,8 +130,33 @@ test("lookup tool errors are exploration", async () => {
 
 test("a refused edit that is never redone counts", async () => {
   const { t, dir } = setup()
-  t.after(failed("write", { path: "test/a.test.ts" }, "Edit refused: read test/a.test.ts before editing it"), dir)
+  // opencode fires no after-hook for a refused call; the guard reports it directly.
+  t.refused({ tool: "write", sessionID: "s", input: { path: "test/a.test.ts" } }, "Edit refused: read test/a.test.ts before editing it")
   expect((await t.evidence("s", dir)).lastFailure?.tool).toBe("write")
+  t.after(done("write", { path: "test/a.test.ts" }), dir)
+  expect((await t.evidence("s", dir)).lastFailure).toBeUndefined()
+})
+
+test("passing checks after the last change are recorded", async () => {
+  const { t, dir } = setup()
+  t.after(done("shell", { command: "bun test" }, { metadata: { exit: 0 } }), dir)
+  t.after(done("edit", { path: "a.ts" }), dir)
+  expect((await t.evidence("s", dir)).passedChecks).toEqual([])
+  t.after(done("shell", { command: "bun  test" }, { metadata: { exit: 0 } }), dir)
+  t.after(done("shell", { command: "bun run lint" }, { metadata: { exit: 1 } }), dir)
+  t.after(done("shell", { command: "ls" }, { metadata: { exit: 0 } }), dir)
+  expect((await t.evidence("s", dir)).passedChecks).toEqual(["bun test"])
+  t.addSnapshotFiles("s", ["b.ts"])
+  expect((await t.evidence("s", dir)).passedChecks).toEqual([])
+})
+
+test("check commands normalize", () => {
+  expect(normalizeCheck("npm test")).toBe("run test")
+  expect(normalizeCheck("  pnpm   run  lint ")).toBe("run lint")
+  expect(normalizeCheck("bun run test")).toBe("run test")
+  // bun's own test runner, not the "test" script.
+  expect(normalizeCheck("bun test")).toBe("bun test")
+  expect(normalizeCheck("cargo test --quiet")).toBe("cargo test --quiet")
 })
 
 test("failure key is the call, not its output", async () => {

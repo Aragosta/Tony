@@ -42,6 +42,31 @@ function hasPythonTests(dir: string): boolean {
   return readdirSync(dir, { withFileTypes: true }).some((e) => e.isDirectory() && testFile(join(dir, e.name)))
 }
 
+/**
+ * One spelling per check, so a run the agent did can stand in for the gate's own: whitespace collapsed, and a package
+ * script is `run <name>` whichever manager runs it (`npm test` too; `bun test` is bun's own runner, not the script).
+ */
+export function normalizeCheck(command: string): string {
+  return command
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^(?:npm|pnpm|yarn) test\b/, "run test")
+    .replace(/^(?:npm|pnpm|yarn|bun) run (?=\S)/, "run ")
+}
+
+/** Normalized commands that count as running `command`: itself, plus the script's body for a package script. */
+export function checkAliases(command: string, dir: string): string[] {
+  const own = normalizeCheck(command)
+  const name = /^run (\S+)$/.exec(own)?.[1]
+  if (!name) return [own]
+  try {
+    const script = JSON.parse(readFileSync(join(dir, "package.json"), "utf8")).scripts?.[name]
+    return typeof script === "string" ? [own, normalizeCheck(script)] : [own]
+  } catch {
+    return [own]
+  }
+}
+
 /** The project's own checks, from the first ecosystem found. Empty when nothing is detected. */
 export function detectChecks(dir: string): string[] {
   const node = nodeChecks(dir)

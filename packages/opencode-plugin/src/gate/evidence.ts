@@ -4,6 +4,7 @@ import { isAbsolute, relative, resolve } from "node:path"
 import type { ToolAfterEvent, ToolBeforeEvent } from "../host.ts"
 import { fingerprint } from "../loop/fingerprint.ts"
 import { resultText } from "../tool-result.ts"
+import { normalizeCheck } from "../verify/detect.ts"
 import { isTestFile, patchFiles, tamperFindings } from "./tamper.ts"
 
 export interface Failure {
@@ -21,6 +22,8 @@ export interface TurnEvidence {
   lastFailure?: Failure
   openTodos: string[]
   testTampering: string[]
+  /** Check commands (normalized) the agent itself ran successfully after its last change. */
+  passedChecks: string[]
 }
 
 interface Turn {
@@ -28,6 +31,7 @@ interface Turn {
   changeSeq: number
   lastFailure?: Failure
   todos: string[]
+  passed: Set<string>
   /** Test file content before this turn first changed it; null when it did not exist. */
   testBaselines: Map<string, string | null>
 }
@@ -71,7 +75,7 @@ export class EvidenceTracker {
   private turn(sessionID: string): Turn {
     let t = this.turns.get(sessionID)
     if (!t) {
-      t = { changed: new Set(), changeSeq: 0, todos: [], testBaselines: new Map() }
+      t = { changed: new Set(), changeSeq: 0, todos: [], passed: new Set(), testBaselines: new Map() }
       this.turns.set(sessionID, t)
     }
     return t
@@ -95,6 +99,7 @@ export class EvidenceTracker {
     if (e.status === "completed" && MUTATIONS.has(e.tool)) {
       for (const path of targets(e.tool, e.input, directory)) t.changed.add(path)
       t.changeSeq++
+      t.passed.clear()
       t.lastFailure = undefined
       return
     }
@@ -107,6 +112,15 @@ export class EvidenceTracker {
     const failure = this.failureOf(e)
     if (failure) t.lastFailure = failure
     else if (e.status === "completed" && t.lastFailure?.key === key) t.lastFailure = undefined
+    if (e.status === "completed" && e.tool === "shell" && e.result.metadata?.exit === 0) {
+      const command = String(((e.input ?? {}) as { command?: unknown }).command ?? "")
+      if (runsCheck(command)) t.passed.add(normalizeCheck(command))
+    }
+  }
+
+  /** A call another hook refused. opencode fires no after-hook for it, so the refusing hook reports it here. */
+  refused(e: ToolBeforeEvent, message: string): void {
+    this.turn(e.sessionID).lastFailure = { tool: e.tool, summary: message.slice(-SUMMARY_CHARS), key: fingerprint(e.tool, e.input) }
   }
 
   private failureOf(e: ToolAfterEvent): Failure | undefined {
@@ -131,6 +145,7 @@ export class EvidenceTracker {
     if (fresh.length === 0) return
     for (const f of fresh) t.changed.add(f)
     t.changeSeq++
+    t.passed.clear()
   }
 
   async evidence(sessionID: string, directory: string): Promise<TurnEvidence> {
@@ -147,6 +162,7 @@ export class EvidenceTracker {
       ...(t.lastFailure ? { lastFailure: { ...t.lastFailure } } : {}),
       openTodos: t.todos,
       testTampering,
+      passedChecks: [...t.passed].sort(),
     }
   }
 

@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto"
 import { existsSync, readFileSync, statSync } from "node:fs"
 import { isAbsolute, relative, resolve } from "node:path"
-import type { Host } from "../host.ts"
+import type { Host, ToolBeforeEvent } from "../host.ts"
 import type { EditGuardOptions } from "../options.ts"
 import { patchFiles } from "../gate/tamper.ts"
 
@@ -32,7 +32,15 @@ function touched(tool: string, input: unknown): string[] {
   return guarded(tool, input)
 }
 
-export async function registerEditGuard(host: Host, opts: EditGuardOptions): Promise<void> {
+/**
+ * `onRefuse` hears about each refusal: opencode fires no after-hook for a call a before-hook rejected, so this is
+ * the only way other modules (the completion gate) learn the edit never happened.
+ */
+export async function registerEditGuard(
+  host: Host,
+  opts: EditGuardOptions,
+  onRefuse?: (e: ToolBeforeEvent, message: string) => void,
+): Promise<void> {
   if (!opts.enabled) return
   // sessionID -> absolute path -> sha1 of the content the session last read or wrote
   const seen = new Map<string, Map<string, string>>()
@@ -57,8 +65,12 @@ export async function registerEditGuard(host: Host, opts: EditGuardOptions): Pro
       if (!isFile(abs)) continue
       const shown = relative(dir, abs)
       const known = files(e.sessionID).get(abs)
-      if (known === undefined) throw new Error(notReadMessage(shown))
-      if (known !== digest(abs)) throw new Error(changedMessage(shown))
+      const message = known === undefined ? notReadMessage(shown) : known !== digest(abs) ? changedMessage(shown) : undefined
+      if (message === undefined) continue
+      try {
+        onRefuse?.(e, message)
+      } catch {}
+      throw new Error(message)
     }
   })
 

@@ -5,7 +5,7 @@ export interface StatusRecord {
   sessionID: string
   status: GateStatus
   rounds: number
-  checks: { command: string; ok: boolean; skipped?: boolean }[]
+  checks: { command: string; ok: boolean; skipped?: boolean; reused?: boolean }[]
   pending: string[]
   testsChanged: string[]
   judge?: "done" | "continue" | "blocked" | "invalid"

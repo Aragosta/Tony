@@ -1,16 +1,8 @@
 // The only file that touches the opencode plugin API. Everything else talks to `Host`.
 import { Plugin } from "@opencode/plugin"
-import { registerDiagnostics } from "./diagnostics/register.ts"
-import { registerEditGuard } from "./edit/guard.ts"
-import { EvidenceTracker } from "./gate/evidence.ts"
-import { registerGate } from "./gate/register.ts"
 import type { Host, TextPart, TranscriptMessage } from "./host.ts"
-import { registerLocalContext } from "./local/context.ts"
-import { registerLoopGuard } from "./loop/guard.ts"
 import { parseOptions } from "./options.ts"
-import { registerPrompt } from "./prompt/register.ts"
-import { detectChecks } from "./verify/detect.ts"
-import { exec } from "./verify/exec.ts"
+import { registerTony } from "./register.ts"
 
 type PluginContext = Parameters<Plugin.Plugin["setup"]>[0]
 
@@ -137,14 +129,6 @@ export function createHost(ctx: PluginContext): Host {
 export default Plugin.define({
   id: "tony",
   async setup(ctx) {
-    const o = parseOptions(ctx.options)
-    const host = createHost(ctx)
-    await registerLoopGuard(host, o.loopGuard)
-    await registerPrompt(host, o.prompt, o.local)
-    await registerLocalContext(host, o.local)
-    // Order matters: a refused edit (edit guard) must not trigger a diagnostics baseline run.
-    await registerEditGuard(host, o.editGuard)
-    await registerDiagnostics(host, o.diagnostics)
-    await registerGate(host, o.gate, { exec, detect: detectChecks, tracker: new EvidenceTracker() })
+    await registerTony(createHost(ctx), parseOptions(ctx.options))
   },
 })

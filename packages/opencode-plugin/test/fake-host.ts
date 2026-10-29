@@ -100,6 +100,16 @@ export function createFakeHost() {
     async before(e: ToolBeforeEvent) {
       for (const cb of beforeCbs) await cb(e)
     },
+    /** One tool call as opencode 2.2.1 runs it: a before-hook that throws refuses the call, and no after-hook fires. */
+    async call(before: ToolBeforeEvent, after: (e: ToolBeforeEvent) => AfterInput): Promise<string | undefined> {
+      try {
+        await this.before(before)
+      } catch (err) {
+        return (err as Error).message
+      }
+      await this.after(after(before))
+      return undefined
+    },
     async after(input: AfterInput) {
       const e = (
         input.status === "completed" ? { ...input, append: (t: string) => void appended.push(t) } : input

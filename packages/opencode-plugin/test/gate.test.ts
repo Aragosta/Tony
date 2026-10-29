@@ -21,7 +21,7 @@ afterEach(() => {
 })
 const statuses = () => (existsSync(statusFile) ? readFileSync(statusFile, "utf8").trim().split("\n").map((l) => JSON.parse(l)) : [])
 
-async function setup(results: Partial<ExecResult>[] = [], opts: Partial<GateOptions> = {}) {
+async function setup(results: Partial<ExecResult>[] = [], opts: Partial<GateOptions> = {}, checks = ["bun test"]) {
   const f = createFakeHost()
   const dir = mkdtempSync(join(tmpdir(), "tony-gate-"))
   f.sessions.set("s", { directory: dir })
@@ -34,7 +34,7 @@ async function setup(results: Partial<ExecResult>[] = [], opts: Partial<GateOpti
     calls.push(command)
     return { code: 0, output: "", timedOut: false, ...(results.shift() ?? {}) }
   }
-  await registerGate(f.host, { ...DEFAULTS.gate, ...opts }, { exec, detect: () => ["bun test"], tracker: new EvidenceTracker() })
+  await registerGate(f.host, { ...DEFAULTS.gate, ...opts }, { exec, detect: () => checks, tracker: new EvidenceTracker() })
   return { f, calls }
 }
 const edit = (path = "a.ts") => ({ tool: "edit", sessionID: "s", input: { path }, status: "completed" as const, result: {} })
@@ -147,4 +147,39 @@ test("gate errors never block", async () => {
   await f.after(edit())
   await f.idle("s")
   expect(f.continued).toEqual([])
+})
+
+const shell = (command: string, exit: number) => ({
+  tool: "shell",
+  sessionID: "s",
+  input: { command },
+  status: "completed" as const,
+  result: { metadata: { exit } },
+})
+
+test("checks the agent already passed after its last change are not rerun", async () => {
+  const { f, calls } = await setup()
+  await f.after(edit())
+  await f.after(shell("bun test", 0))
+  await f.idle("s")
+  expect(calls).toEqual([])
+  expect(f.continued).toEqual([])
+  expect(statuses().at(-1)).toMatchObject({ status: "verified", checks: [{ command: "bun test", ok: true, reused: true }] })
+})
+
+test("a pass before the last change does not count", async () => {
+  const { f, calls } = await setup([{ code: 1, output: "1 fail" }])
+  await f.after(shell("bun test", 0))
+  await f.after(edit())
+  await f.idle("s")
+  expect(calls).toEqual(["bun test"])
+  expect(f.continued).toHaveLength(1)
+})
+
+test("a pass under another package manager covers the detected check", async () => {
+  const { f, calls } = await setup([], {}, ["npm run test"])
+  await f.after(edit())
+  await f.after(shell("bun run test", 0))
+  await f.idle("s")
+  expect(calls).toEqual([])
 })

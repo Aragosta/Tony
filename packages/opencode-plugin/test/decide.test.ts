@@ -7,6 +7,7 @@ const evidence = (over: Partial<TurnEvidence> = {}): TurnEvidence => ({
   changeSeq: 1,
   openTodos: [],
   testTampering: [],
+  passedChecks: [],
   ...over,
 })
 const input = (over: Partial<GateInput> = {}): GateInput => ({

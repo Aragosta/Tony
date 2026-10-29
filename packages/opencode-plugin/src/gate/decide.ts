@@ -7,6 +7,8 @@ export interface CheckRun {
   output: string
   /** Timed out or could not run: neither a pass nor a failure. */
   skipped?: boolean
+  /** Not run: the agent itself ran it successfully after its last change. */
+  reused?: boolean
 }
 
 export type GateStatus = "verified" | "no-changes" | "no-checks" | "unresolved" | "needs-user"
