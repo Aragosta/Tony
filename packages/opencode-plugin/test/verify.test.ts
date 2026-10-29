@@ -14,8 +14,10 @@ const dir = (files: Record<string, string> = {}) => {
   return d
 }
 
+const win = process.platform === "win32"
+
 test("exec captures output and code", async () => {
-  const r = await exec("echo hi; exit 3", dir(), 5000)
+  const r = await exec(win ? "echo hi & exit 3" : "echo hi; exit 3", dir(), 5000)
   expect(r.code).toBe(3)
   expect(r.timedOut).toBe(false)
   expect(r.output).toContain("hi")
@@ -23,7 +25,7 @@ test("exec captures output and code", async () => {
 
 test("exec times out", async () => {
   const start = Date.now()
-  const r = await exec("sleep 5", dir(), 300)
+  const r = await exec(win ? "ping -n 6 127.0.0.1 > nul" : "sleep 5", dir(), 300)
   expect(r.timedOut).toBe(true)
   expect(Date.now() - start).toBeLessThan(2000)
 })
@@ -51,7 +53,7 @@ test("nothing detected", () => {
 })
 
 test("checks get no stdin and run as CI", async () => {
-  const r = await exec("cat; echo CI=$CI", dir(), 3000)
+  const r = await exec(win ? "echo CI=%CI%" : "cat; echo CI=$CI", dir(), 3000)
   expect(r.timedOut).toBe(false)
   expect(r.output).toContain("CI=1")
 })

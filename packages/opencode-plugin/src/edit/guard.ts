@@ -4,6 +4,7 @@ import { isAbsolute, relative, resolve } from "node:path"
 import type { Host, ToolBeforeEvent } from "../host.ts"
 import type { EditGuardOptions } from "../options.ts"
 import { patchFiles } from "../gate/tamper.ts"
+import { toPosix } from "../platform.ts"
 
 export function notReadMessage(path: string): string {
   return `Edit refused: read ${path} before editing it, so the change is based on its current content.`
@@ -63,7 +64,7 @@ export async function registerEditGuard(
     for (const path of paths) {
       const abs = isAbsolute(path) ? path : resolve(dir, path)
       if (!isFile(abs)) continue
-      const shown = relative(dir, abs)
+      const shown = toPosix(relative(dir, abs))
       const known = files(e.sessionID).get(abs)
       const message = known === undefined ? notReadMessage(shown) : known !== digest(abs) ? changedMessage(shown) : undefined
       if (message === undefined) continue

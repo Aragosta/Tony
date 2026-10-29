@@ -51,15 +51,18 @@ export interface TonyOptions {
   gate: GateOptions
 }
 
-export const DEFAULT_CHECKERS: DiagnosticChecker[] = [
-  {
-    extensions: [".ts", ".tsx", ".mts", ".cts"],
-    command: "node_modules/.bin/tsc --noEmit --pretty false",
-    requires: "node_modules/.bin/tsc",
-  },
-  { extensions: [".py"], command: "ruff check --output-format concise {file}", requires: "ruff" },
-  { extensions: [".go"], command: "go vet ./...", requires: "go" },
-]
+/** On Windows, npm's `.bin/tsc` is a shell script; cmd.exe runs `tsc.cmd`. */
+export function defaultCheckers(platform: NodeJS.Platform = process.platform): DiagnosticChecker[] {
+  const tsc =
+    platform === "win32"
+      ? { command: "node_modules\\.bin\\tsc.cmd --noEmit --pretty false", requires: "node_modules/.bin/tsc.cmd" }
+      : { command: "node_modules/.bin/tsc --noEmit --pretty false", requires: "node_modules/.bin/tsc" }
+  return [
+    { extensions: [".ts", ".tsx", ".mts", ".cts"], ...tsc },
+    { extensions: [".py"], command: "ruff check --output-format concise {file}", requires: "ruff" },
+    { extensions: [".go"], command: "go vet ./...", requires: "go" },
+  ]
+}
 
 export const DEFAULTS: TonyOptions = {
   loopGuard: {
@@ -75,7 +78,7 @@ export const DEFAULTS: TonyOptions = {
     contextLimit: 131072,
   },
   editGuard: { enabled: true },
-  diagnostics: { enabled: true, timeoutMs: 20000, checkers: DEFAULT_CHECKERS },
+  diagnostics: { enabled: true, timeoutMs: 20000, checkers: defaultCheckers() },
   gate: { enabled: true, maxRounds: 3, checks: [], checkTimeoutMs: 300000, judge: false },
 }
 

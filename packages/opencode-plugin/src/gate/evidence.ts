@@ -4,6 +4,7 @@ import { isAbsolute, relative, resolve } from "node:path"
 import type { ToolAfterEvent, ToolBeforeEvent } from "../host.ts"
 import { fingerprint } from "../loop/fingerprint.ts"
 import { resultText } from "../tool-result.ts"
+import { toPosix } from "../platform.ts"
 import { normalizeCheck } from "../verify/detect.ts"
 import { isTestFile, patchFiles, tamperFindings } from "./tamper.ts"
 
@@ -58,7 +59,8 @@ const SUMMARY_CHARS = 1500
 export function runsCheck(command: string): boolean {
   return command.split(/&&|\|\||[;|\n]/).some((segment) => {
     const words = segment.trim().split(/\s+/).filter((w) => w.length > 0 && !/^\w+=/.test(w))
-    const first = (words[0] ?? "").replace(/^.*\//, "")
+    // `/usr/bin/npm`, `C:\tools\bun.exe` and `npm.cmd` are the runner too.
+    const first = (words[0] ?? "").replace(/^.*[\\/]/, "").replace(/\.(cmd|exe|bat)$/i, "")
     if (/^python3?$/.test(first)) return words.some((w) => PYTHON_CHECKS.has(w))
     return RUNNERS.has(first)
   })
@@ -79,7 +81,7 @@ function cleanPass(e: ToolAfterEvent, directory: string): string | undefined {
 const readOrNull = (path: string) => (existsSync(path) ? readFileSync(path, "utf8") : null)
 
 function toRelative(directory: string, path: string): string {
-  return relative(directory, isAbsolute(path) ? path : resolve(directory, path))
+  return toPosix(relative(directory, isAbsolute(path) ? path : resolve(directory, path)))
 }
 
 /** Files a mutation call touches, relative to `directory`. */
@@ -167,7 +169,7 @@ export class EvidenceTracker {
 
   addSnapshotFiles(sessionID: string, files: readonly string[]): void {
     const t = this.turn(sessionID)
-    const fresh = files.filter((f) => !t.changed.has(f))
+    const fresh = files.map(toPosix).filter((f) => !t.changed.has(f))
     if (fresh.length === 0) return
     for (const f of fresh) t.changed.add(f)
     t.changeSeq++

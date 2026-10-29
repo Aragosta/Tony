@@ -3,7 +3,7 @@ import { mkdtempSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import type { ToolAfterEvent } from "../src/host.ts"
-import { EvidenceTracker } from "../src/gate/evidence.ts"
+import { EvidenceTracker, runsCheck } from "../src/gate/evidence.ts"
 import { normalizeCheck } from "../src/verify/detect.ts"
 
 const setup = () => ({ t: new EvidenceTracker(), dir: mkdtempSync(join(tmpdir(), "tony-ev-")) })
@@ -205,4 +205,16 @@ test("failure key is the call, not its output", async () => {
   expect(k1).toBeDefined()
   t.after(done("shell", { command: "bun test" }, { content: "run 2", metadata: { exit: 1 } }), dir)
   expect((await t.evidence("s", dir)).lastFailure?.key).toBe(k1!)
+})
+
+test("Windows-style paths are compared with forward slashes", async () => {
+  const { t, dir } = setup()
+  t.addSnapshotFiles("s", ["test\\a.test.ts"])
+  expect((await t.evidence("s", dir)).changedFiles).toEqual(["test/a.test.ts"])
+})
+
+test("Windows runner names count as checks", () => {
+  expect(runsCheck("npm.cmd test")).toBe(true)
+  expect(runsCheck("C:\\tools\\bun.exe test")).toBe(true)
+  expect(runsCheck("grep.exe test x")).toBe(false)
 })

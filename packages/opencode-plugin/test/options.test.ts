@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { DEFAULTS, parseOptions } from "../src/options.ts"
+import { DEFAULTS, defaultCheckers, parseOptions } from "../src/options.ts"
 
 describe("parseOptions", () => {
   test("defaults when undefined", () => {
@@ -48,4 +48,10 @@ describe("phase 2 options", () => {
   test("rejects non-array checks", () => {
     expect(() => parseOptions({ gate: { checks: "npm test" } })).toThrow("gate.checks must be an array of strings")
   })
+})
+
+test("default checkers fit the platform", () => {
+  const tsc = (p: NodeJS.Platform) => defaultCheckers(p).find((c) => c.extensions.includes(".ts"))!
+  expect(tsc("linux")).toMatchObject({ command: "node_modules/.bin/tsc --noEmit --pretty false", requires: "node_modules/.bin/tsc" })
+  expect(tsc("win32")).toMatchObject({ command: "node_modules\\.bin\\tsc.cmd --noEmit --pretty false", requires: "node_modules/.bin/tsc.cmd" })
 })
