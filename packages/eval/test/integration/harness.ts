@@ -16,6 +16,8 @@ export interface ScriptedRun {
   status: GateRecord[]
   exitCode: number | null
   finalText: string
+  /** The loop guard paused the session. */
+  stopped: boolean
 }
 
 const lines = (file: string) => (existsSync(file) ? readFileSync(file, "utf8").split("\n").filter(Boolean) : [])
@@ -76,5 +78,6 @@ export async function runScripted(opts: { script: Step[]; repo: Record<string, s
     child.on("error", () => resolve(null))
   })
   mock.stop()
-  return { workspace, log: lines(logFile), status: lines(statusFile).map((l) => JSON.parse(l)), exitCode, finalText: parseEvents(stdout.split("\n")).finalText }
+  const events = parseEvents(stdout.split("\n"))
+  return { workspace, log: lines(logFile), status: lines(statusFile).map((l) => JSON.parse(l)), exitCode, finalText: events.finalText, stopped: events.stopped }
 }

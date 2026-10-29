@@ -51,6 +51,35 @@ describe.skipIf(!enabled)("opencode integration", () => {
     expect(r.status.at(-1)?.status).toBe("verified")
   }, 150000)
 
+  // opencode fires no after-hook for a refused call; the gate must still see that the edit never happened.
+  test("a refused edit followed by 'done' is not verified", async () => {
+    const r = await runScripted({
+      repo: REPO,
+      tony: true,
+      script: [
+        { tool: "write", args: { path: "test/a.test.ts", content: "test('x', () => {})\n" } },
+        { text: "Added the test." },
+        { text: "I could not write it." },
+      ],
+    })
+    expect(r.log.some((l) => l.includes("Your last `write` call failed"))).toBe(true)
+    expect(r.status.at(-1)?.status).toBe("unresolved")
+  }, 150000)
+
+  test("checks the agent already passed are not rerun", async () => {
+    const r = await runScripted({
+      repo: REPO,
+      tony: true,
+      script: [
+        { tool: "read", args: { path: "src/a.ts" } },
+        { tool: "write", args: { path: "src/a.ts", content: "export const add = (a: number, b: number) => b + a\n" } },
+        { tool: "shell", args: { command: "bun test" } },
+        { text: "Done; bun test passes." },
+      ],
+    })
+    expect(r.status.at(-1)).toMatchObject({ status: "verified", checks: [{ command: "npm run test", ok: true, reused: true }] })
+  }, 150000)
+
   test("edit guard", async () => {
     const r = await runScripted({
       repo: REPO,
