@@ -1,0 +1,10 @@
+{"type":"step_start","timestamp":1,"sessionID":"s","part":{"type":"step-start"}}
+{"type":"tool_use","timestamp":2,"sessionID":"s","part":{"type":"tool","tool":"shell","state":{"status":"completed","input":{"command":"git log"},"output":"abc"}}}
+{"type":"tool_use","timestamp":3,"sessionID":"s","part":{"type":"tool","tool":"shell","state":{"status":"completed","input":{"command":"git log"},"output":"abc"}}}
+{"type":"step_finish","timestamp":4,"sessionID":"s","part":{"type":"step-finish","tokens":{"input":100,"output":10,"reasoning":0,"cache":{"read":50,"write":5}}}}
+{"type":"tool_use","timestamp":5,"sessionID":"s","part":{"type":"tool","tool":"shell","state":{"status":"error","input":{"command":"git log"},"error":{"type":"unknown","message":"Blocked: you already…"}}}}
+{"type":"tool_use","timestamp":6,"sessionID":"s","part":{"type":"tool","tool":"shell","state":{"status":"error","input":{"command":"git log"},"error":{"type":"unknown","message":"Stopped: …"}}}}
+{"type":"text","timestamp":7,"sessionID":"s","part":{"type":"text","text":"done"}}
+{"type":"step_finish","timestamp":8,"sessionID":"s","part":{"type":"step-finish","tokens":{"input":100,"output":10,"reasoning":0,"cache":{"read":50,"write":5}}}}
+{"type":"error","timestamp":9,"sessionID":"s","error":{"name":"UnknownError","message":"boom"}}
+not json
