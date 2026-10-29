@@ -88,3 +88,14 @@ test("a hanging check times out and fails the run", async () => {
   expect(r.checkOutput).toContain("check timed out")
   expect(Date.now() - start).toBeLessThan(5000)
 })
+
+test("check sees the final text", async () => {
+  const r = await runTask(makeTask('grep -q done "$EVAL_FINAL_TEXT"'), opts)
+  expect(r.passed).toBe(true)
+})
+
+test("gate status is captured", async () => {
+  const gateFake = fileURLToPath(new URL("./fixtures/fake-opencode-gate.sh", import.meta.url))
+  const r = await runTask(makeTask("true"), { ...opts, opencodeBin: gateFake })
+  expect(r.gate?.status).toBe("verified")
+})

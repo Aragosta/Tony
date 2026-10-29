@@ -14,6 +14,13 @@ export interface VariantSummary {
   stoppedRuns: number
   /** Runs with 3+ identical tool calls in a row. */
   loopRuns: number
+  /** Runs that ended on their own (no timeout, no loop stop) but whose check failed: the agent said done, wrongly. */
+  falseDone: number
+  /** Runs Tony's completion gate marked verified. */
+  verifiedRuns: number
+  avgGateRounds: number
+  /** Runs with opencode errors or a non-zero exit: likely infrastructure, not the model. */
+  errorRuns: number
   tokens: Tokens
   cacheHitRate: number
 }
@@ -49,6 +56,10 @@ export function summarize(results: readonly RunResult[]): VariantSummary[] {
         totalBlocked: sum((r) => r.metrics.blocked),
         stoppedRuns: runs.filter((r) => r.metrics.stopped).length,
         loopRuns: runs.filter((r) => r.metrics.maxIdenticalStreak >= 3).length,
+        falseDone: runs.filter((r) => !r.passed && !r.timedOut && !r.metrics.stopped).length,
+        verifiedRuns: runs.filter((r) => r.gate?.status === "verified").length,
+        avgGateRounds: sum((r) => r.gate?.rounds ?? 0) / runs.length,
+        errorRuns: runs.filter((r) => r.metrics.errors.length > 0 || (r.exitCode !== null && r.exitCode !== 0)).length,
         tokens,
         cacheHitRate: prompt === 0 ? 0 : tokens.cacheRead / prompt,
       },
@@ -61,18 +72,18 @@ const fixed = (n: number) => n.toFixed(1)
 
 export function toMarkdown(summaries: readonly VariantSummary[], results: readonly RunResult[]): string {
   const lines = [
-    "| variant | pass rate | avg steps | loop runs | blocked | cache hit |",
-    "|---|---|---|---|---|---|",
+    "| variant | pass rate | false done | avg steps | loop runs | blocked | gate rounds | errors | cache hit |",
+    "|---|---|---|---|---|---|---|---|---|",
     ...summaries.map(
       (s) =>
-        `| ${s.variant} | ${pct(s.passRate)} (${s.passed}/${s.runs}) | ${fixed(s.avgSteps)} | ${s.loopRuns} | ${s.totalBlocked} | ${pct(s.cacheHitRate)} |`,
+        `| ${s.variant} | ${pct(s.passRate)} (${s.passed}/${s.runs}) | ${s.falseDone} | ${fixed(s.avgSteps)} | ${s.loopRuns} | ${s.totalBlocked} | ${fixed(s.avgGateRounds)} | ${s.errorRuns} | ${pct(s.cacheHitRate)} |`,
     ),
     "",
-    "| task | variant | passed | steps | tool calls | blocked | max streak | seconds |",
-    "|---|---|---|---|---|---|---|---|",
+    "| task | variant | passed | steps | tool calls | blocked | max streak | gate | errors | seconds |",
+    "|---|---|---|---|---|---|---|---|---|---|",
     ...results.map(
       (r) =>
-        `| ${r.taskId} | ${r.variant} | ${r.passed ? "yes" : r.timedOut ? "timeout" : "no"} | ${r.metrics.steps} | ${r.metrics.toolCalls} | ${r.metrics.blocked} | ${r.metrics.maxIdenticalStreak} | ${fixed(r.durationMs / 1000)} |`,
+        `| ${r.taskId} | ${r.variant} | ${r.passed ? "yes" : r.timedOut ? "timeout" : "no"} | ${r.metrics.steps} | ${r.metrics.toolCalls} | ${r.metrics.blocked} | ${r.metrics.maxIdenticalStreak} | ${r.gate?.status ?? "-"} | ${r.metrics.errors.length} | ${fixed(r.durationMs / 1000)} |`,
     ),
   ]
   return lines.join("\n") + "\n"

@@ -27,6 +27,7 @@ const result = (over: Partial<RunResult>): RunResult => ({
   durationMs: 1,
   metrics: metrics(),
   checkOutput: "",
+  stderrTail: "",
   ...over,
 })
 
@@ -60,6 +61,27 @@ test("preflight aborts", async () => {
 
 test("toMarkdown", () => {
   const md = toMarkdown(summarize(results), results)
-  expect(md).toContain("| variant | pass rate | avg steps | loop runs | blocked | cache hit |")
+  expect(md).toContain("| variant | pass rate | false done | avg steps | loop runs | blocked | gate rounds | errors | cache hit |")
   for (const r of results) expect(md).toContain(`| ${r.taskId} | ${r.variant} |`)
+})
+
+test("false done", () => {
+  const s = summarize([
+    result({ passed: false }),
+    result({ passed: true }),
+    result({ passed: false, timedOut: true }),
+    result({ passed: false, metrics: metrics({ stopped: true }) }),
+  ])
+  expect(s[0]!.falseDone).toBe(1)
+})
+
+test("errors counted", () => {
+  expect(summarize([result({ metrics: metrics({ errors: ["boom"] }) }), result({})])[0]!.errorRuns).toBe(1)
+})
+
+test("gate outcomes summarized", () => {
+  const gate = (status: "verified" | "unresolved", rounds: number) => ({ sessionID: "s", status, rounds, checks: [], pending: [], testsChanged: [] })
+  const s = summarize([result({ variant: "tony", gate: gate("verified", 0) }), result({ variant: "tony", gate: gate("unresolved", 2) })])
+  expect(s[0]!.verifiedRuns).toBe(1)
+  expect(s[0]!.avgGateRounds).toBe(1)
 })
