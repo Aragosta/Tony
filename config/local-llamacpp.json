@@ -1,0 +1,16 @@
+{
+  "providers": {
+    "llamacpp": {
+      "name": "llama.cpp",
+      "package": "@opencode/ai/providers/openai-compatible",
+      "settings": { "baseURL": "http://127.0.0.1:8080/v1" },
+      "models": {
+        "local": {
+          "name": "llama-server model",
+          "capabilities": { "tools": true },
+          "limit": { "context": 131072, "output": 16384 }
+        }
+      }
+    }
+  }
+}

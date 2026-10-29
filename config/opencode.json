@@ -1,0 +1,20 @@
+{
+  "plugins": [{ "package": "{env:TONY_HOME}/packages/opencode-plugin", "options": {} }],
+  "experimental": { "todo": true, "background_compaction": true },
+  "agents": {
+    "build": { "steps": 150 },
+    "general": { "steps": 80 },
+    "explore": {
+      "steps": 40,
+      "permissions": [
+        { "action": "shell", "resource": "*", "effect": "deny" },
+        { "action": "shell", "resource": "git log*", "effect": "allow" },
+        { "action": "shell", "resource": "git diff*", "effect": "allow" },
+        { "action": "shell", "resource": "git show*", "effect": "allow" },
+        { "action": "shell", "resource": "git status*", "effect": "allow" },
+        { "action": "shell", "resource": "ls*", "effect": "allow" },
+        { "action": "shell", "resource": "wc *", "effect": "allow" }
+      ]
+    }
+  }
+}
