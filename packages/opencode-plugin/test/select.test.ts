@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test"
 import { DEFAULTS } from "../src/options.ts"
 import { isLocal, selectPrompt, toolGuidance } from "../src/prompt/select.ts"
-import { BASE, LOCAL } from "../src/prompt/text.ts"
+import { BASE, LOCAL, PARALLEL } from "../src/prompt/text.ts"
 
 test("base always included", () => {
   const p = selectPrompt({ providerID: "anthropic", id: "x" }, [], DEFAULTS.local)
@@ -28,4 +28,13 @@ test("guidance appears under a heading", () => {
 
 test("case-insensitive provider match", () => {
   expect(isLocal("Ollama", DEFAULTS.local)).toBe(true)
+})
+
+test("parallel read-only calls are suggested to hosted models only", () => {
+  expect(selectPrompt({ providerID: "anthropic", id: "m" }, [], DEFAULTS.local)).toContain(PARALLEL)
+  expect(selectPrompt({ providerID: "llamacpp", id: "m" }, [], DEFAULTS.local)).not.toContain(PARALLEL)
+})
+
+test("the base prompt asks for a check of every part of the request", () => {
+  expect(BASE).toContain("re-read the user's request")
 })

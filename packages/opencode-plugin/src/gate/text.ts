@@ -7,7 +7,7 @@ export const HEADER = "Before you finish:"
 export const FOOTER = "If you cannot fix something, stop and tell the user plainly what is still wrong and why."
 
 export const checksSection = (command: string, output: string) =>
-  `The project's checks fail:\n<check command="${command}">\n${output.slice(-OUTPUT_CHARS)}\n</check>\nFix the cause. Do not weaken, skip or delete tests to make them pass.`
+  `The project's checks fail:\n<check command="${command}">\n${output.slice(-OUTPUT_CHARS)}\n</check>\nFix the cause. Do not weaken, skip or delete tests to make them pass. If a failure is unrelated to your change and was there before, say so instead of fixing it.`
 
 export const failureSection = (f: Failure) =>
   `Your last \`${f.tool}\` call failed and nothing changed after it:\n<failure>\n${f.summary}\n</failure>\nFix it, or explain in your answer why it is expected or can't be fixed.`

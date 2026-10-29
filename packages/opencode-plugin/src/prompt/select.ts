@@ -1,5 +1,5 @@
 import type { LocalOptions } from "../options.ts"
-import { BASE, LOCAL } from "./text.ts"
+import { BASE, LOCAL, PARALLEL } from "./text.ts"
 
 const GUIDANCE: ReadonlyArray<[tool: string, line: string]> = [
   ["shell", "- Prefer read, grep, glob and edit over shell equivalents; use `shell` for builds, tests, git and other commands."],
@@ -23,6 +23,6 @@ export function selectPrompt(model: { providerID: string; id: string }, tools: r
   let prompt = BASE
   const lines = toolGuidance(tools)
   if (lines.length > 0) prompt += "\n\n# Tools\n" + lines.join("\n")
-  if (isLocal(model.providerID, local)) prompt += "\n\n" + LOCAL
+  prompt += "\n\n" + (isLocal(model.providerID, local) ? LOCAL : PARALLEL)
   return prompt
 }

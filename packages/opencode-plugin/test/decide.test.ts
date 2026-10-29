@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test"
 import type { TurnEvidence } from "../src/gate/evidence.ts"
 import { announcesAction, decide, type GateInput } from "../src/gate/decide.ts"
+import { checksSection } from "../src/gate/text.ts"
 
 const evidence = (over: Partial<TurnEvidence> = {}): TurnEvidence => ({
   changedFiles: ["a.ts"],
@@ -89,4 +90,8 @@ test("same failing call is one reason, whatever its output", () => {
   const d = decide(input({ evidence: f("out 1") }))
   if (d.kind !== "continue") throw new Error("expected continue")
   expect(decide(input({ evidence: f("out 2"), seen: new Set(d.keys) })).kind).toBe("stop")
+})
+
+test("failing checks may be unrelated to the change", () => {
+  expect(checksSection("bun test", "1 fail")).toContain("was there before, say so")
 })
