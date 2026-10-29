@@ -1,12 +1,12 @@
 # Tony roadmap (ranked)
 
-Backbone: opencode **V2, pinned at 2.2.0** (see `research/v1-vs-v2.md`). Every item is a module in the single Tony plugin (`packages/opencode-plugin`) or a config default. Research behind each item: `research/opencode-gaps.md`, `research/plugins-review.md`, `research/prompt-patterns.md`.
+Backbone: opencode **V2, pinned at 2.2.1** (the research read 2.2.0 source; the plan was checked against the published 2.2.1 plugin types) (see `research/v1-vs-v2.md`). Every item is a module in the single Tony plugin (`packages/opencode-plugin`) or a config default. Research behind each item: `research/opencode-gaps.md`, `research/plugins-review.md`, `research/prompt-patterns.md`.
 
 Ranking rule: first what stops the agent from failing outright (loops, a bad prompt), then the measurement we need to tune everything else, then correctness feedback, then context efficiency, then extras.
 
 | Rank | Item | Why this rank | Size | Plan |
 |---|---|---|---|---|
-| 1 | **Foundation**: repo scaffold, pinned opencode, plugin skeleton, options, config template (todo on, background compaction on, step caps, read-only `explore`) | Everything else plugs into it; the config gives free wins | S | Phase 1 |
+| 1 | **Foundation**: repo scaffold, pinned opencode, plugin skeleton, options, config template (todo on, background compaction on, step caps, read-only `explore`), **128k local context** (server, opencode and Tony limits all 131072; Tony caps local models so compaction fires before the server truncates) | Everything else plugs into it; the config gives free wins; a mismatched local context silently breaks tool calling | S | Phase 1 |
 | 2 | **`loop-guard`**: block the 3rd identical consecutive tool call, stop at the 5th, reset after edits | V2 has no loop protection at all (V1 had one). Loops are the most visible local-model failure | S | Phase 1 |
 | 3 | **`prompt`**: own base prompt (~500 words) plus a local-model addendum, replacing the 111-word default | Biggest quality lever for the least code | S | Phase 1 |
 | 4 | **Eval harness + Langfuse**: fixed task suite, `opencode run --format json`, score success, tokens, cache hits, steps, loop events | Needed to tune 3 and to prove 5–9 help | M | Phase 1 |
