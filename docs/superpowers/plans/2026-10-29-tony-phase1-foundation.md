@@ -29,7 +29,8 @@
   - `blockAt = 3`, `stopAt = 5`.
   - `mutationTools = ["edit", "write", "patch"]`.
   - `exemptTools = ["question", "todowrite"]`.
-- Local providers default: `["ollama", "lmstudio", "llama.cpp", "vllm", "local"]`.
+- Local providers default: `["ollama", "lmstudio", "llamacpp", "vllm", "local"]`. Provider ids match case-insensitively.
+- Target context window for local models: **128k = `131072` tokens**. The server (`llama-server -c`, `OLLAMA_CONTEXT_LENGTH`), the opencode model `limit.context`, and Tony's `local.contextLimit` must all use the same number.
 - Prompt text is Tony's own wording. Do not paste text from `system_prompts_leaks`.
 - No model identifiers in commits or code.
 - Eval: a task passes only when its `check` command exits 0. The model is always passed in with `--model`; the harness never picks one.
@@ -59,8 +60,9 @@
 - Produces:
   ```ts
   export interface LoopGuardOptions { enabled: boolean; blockAt: number; stopAt: number; mutationTools: string[]; exemptTools: string[] }
-  export interface PromptOptions { enabled: boolean; localProviders: string[] }
-  export interface TonyOptions { loopGuard: LoopGuardOptions; prompt: PromptOptions }
+  export interface PromptOptions { enabled: boolean }
+  export interface LocalOptions { providers: string[]; contextLimit: number }
+  export interface TonyOptions { loopGuard: LoopGuardOptions; prompt: PromptOptions; local: LocalOptions }
   export const DEFAULTS: TonyOptions
   export function parseOptions(raw: unknown): TonyOptions
   ```
@@ -74,6 +76,8 @@
 - [ ] **Step 2: Write the failing test** (`test/options.test.ts`):
   - `defaults when undefined`: `parseOptions(undefined)` deep-equals `DEFAULTS`.
   - `merges per section`: `parseOptions({ loopGuard: { blockAt: 4, stopAt: 6 } })` gives `loopGuard.blockAt === 4`, `stopAt === 6`, `mutationTools` still the default, and `prompt` equal to `DEFAULTS.prompt`.
+  - `local defaults`: `DEFAULTS.local.contextLimit === 131072`, and `DEFAULTS.local.providers` contains `"llamacpp"`.
+  - `rejects tiny context`: `expect(() => parseOptions({ local: { contextLimit: 8000 } })).toThrow("contextLimit must be >= 32768")`.
   - `rejects bad thresholds`:
     - `expect(() => parseOptions({ loopGuard: { blockAt: 1 } })).toThrow("blockAt must be >= 2")`
     - `expect(() => parseOptions({ loopGuard: { blockAt: 3, stopAt: 3 } })).toThrow("stopAt must be > blockAt")`
@@ -219,7 +223,7 @@
 - Test: `packages/opencode-plugin/test/select.test.ts`
 
 **Interfaces:**
-- Consumes: `PromptOptions` (Task 1).
+- Consumes: `LocalOptions` (Task 1).
 - Produces:
   ```ts
   // text.ts
@@ -227,19 +231,19 @@
   export const LOCAL: string
   // select.ts
   export function toolGuidance(tools: readonly string[]): string[]
-  export function isLocal(providerID: string, opts: PromptOptions): boolean
-  export function selectPrompt(model: { providerID: string; id: string }, tools: readonly string[], opts: PromptOptions): string
+  export function isLocal(providerID: string, local: LocalOptions): boolean
+  export function selectPrompt(model: { providerID: string; id: string }, tools: readonly string[], local: LocalOptions): string
   ```
 
 - [ ] **Step 1: Write the failing test.**
-  - `base always included`: `selectPrompt({providerID: "anthropic", id: "x"}, [], DEFAULTS.prompt)` starts with `BASE` and doesn't contain `LOCAL`.
+  - `base always included`: `selectPrompt({providerID: "anthropic", id: "x"}, [], DEFAULTS.local)` starts with `BASE` and doesn't contain `LOCAL`.
   - `local addendum for local providers`: with `providerID: "ollama"`, the result ends with `LOCAL`.
   - `guidance follows tools`:
     - `toolGuidance(["todowrite"])` has exactly 1 line, containing `"todowrite"`.
     - `toolGuidance([])` is `[]`.
     - `toolGuidance(["shell", "edit", "todowrite", "subagent", "websearch"])` has length 5.
   - `guidance appears under a heading`: `selectPrompt(..., ["edit"], ...)` contains `"# Tools\n- "`.
-  - `case-insensitive provider match`: `isLocal("Ollama", DEFAULTS.prompt) === true`.
+  - `case-insensitive provider match`: `isLocal("Ollama", DEFAULTS.local) === true`.
 
 - [ ] **Step 2: Run it.** FAIL.
 
@@ -310,11 +314,11 @@
 - Test: `packages/opencode-plugin/test/prompt.test.ts`
 
 **Interfaces:**
-- Consumes: `Host`, `ContextEvent` (Task 4), `selectPrompt` (Task 5), `PromptOptions`.
-- Produces: `export async function registerPrompt(host: Host, opts: PromptOptions): Promise<void>`
+- Consumes: `Host`, `ContextEvent` (Task 4), `selectPrompt` (Task 5), `PromptOptions`, `LocalOptions`.
+- Produces: `export async function registerPrompt(host: Host, opts: PromptOptions, local: LocalOptions): Promise<void>`
 
 - [ ] **Step 1: Write the failing test** (using `createFakeHost`):
-  - `replaces the base system part`: the event is `{agent: "build", model: {providerID: "ollama", id: "q"}, system: [{text: "OLD"}, {text: "ENV"}], tools: {edit: {}}}`. After `context(e)`, `e.system[0].text` equals `selectPrompt(e.model, ["edit"], opts)` and `e.system[1].text === "ENV"`.
+  - `replaces the base system part`: the event is `{agent: "build", model: {providerID: "ollama", id: "q"}, system: [{text: "OLD"}, {text: "ENV"}], tools: {edit: {}}}`. After `context(e)`, `e.system[0].text` equals `selectPrompt(e.model, ["edit"], DEFAULTS.local)` (registered via `registerPrompt(host, DEFAULTS.prompt, DEFAULTS.local)`) and `e.system[1].text === "ENV"`.
   - `skips agents with a custom system prompt`: with `customSystemAgents.add("title")` and an event for `agent: "title"`, `system[0].text` stays `"OLD"`.
   - `no-op on empty system`: `system: []` stays `[]` and doesn't throw.
   - `disabled does nothing`: with `enabled: false`, the text stays `"OLD"`.
@@ -358,7 +362,7 @@
 
 - [ ] **Step 2: Run it.** FAIL.
 
-- [ ] **Step 3: Implement `index.ts`.** `setup` calls `parseOptions(ctx.options)` and then the two `register*` functions. Brand casts (`as never`) for `sessionID`/`agentID` are allowed only in this file.
+- [ ] **Step 3: Implement `index.ts`.** `setup` calls `parseOptions(ctx.options)` and then `registerLoopGuard(host, o.loopGuard)` and `registerPrompt(host, o.prompt, o.local)`. Task 7b adds `registerLocalContext`. Brand casts (`as never`) for `sessionID`/`agentID` are allowed only in this file.
 
 - [ ] **Step 4: Write `config/opencode.json`.**
   ```json
@@ -391,14 +395,16 @@
         "name": "llama.cpp",
         "package": "@opencode/ai/providers/openai-compatible",
         "settings": { "baseURL": "http://127.0.0.1:8080/v1" },
-        "models": { "local": { "name": "llama-server model", "capabilities": { "tools": true }, "limit": { "context": 65536, "output": 8192 } } } } } }
+        "models": { "local": { "name": "llama-server model", "capabilities": { "tools": true }, "limit": { "context": 131072, "output": 16384 } } } } } }
     ```
     `limit.context` must equal llama-server's `-c`. Use the model with `--model llamacpp/local`.
   - README, local models section:
     - With llama.cpp, start `llama-server` with `--jinja` so the model's own chat template is used and tool calls are parsed. Without it, many models print tool calls as plain text, which looks like the "narrating without calling" loop.
     - Set the context size (`-c`) to what the model supports. A truncated context hides earlier calls, and the model then repeats them.
-    - Ollama: opencode 2.2.1 takes the model's trained maximum context (`/api/show` `*.context_length`) as its window, but Ollama runs with its own, often much smaller, context. Ollama then silently drops the oldest tokens (system prompt and tool definitions first), so the model stops calling tools or loops. Start Ollama with `OLLAMA_CONTEXT_LENGTH=65536` (or a Modelfile `PARAMETER num_ctx 65536`). Pick a model whose `ollama show` lists the `tools` capability.
-    - Recommended local backend for Tony: llama.cpp `llama-server --jinja -c 65536`. The context and template are explicit, and `/props` shows the template in use.
+    - Ollama: opencode 2.2.1 takes the model's trained maximum context (`/api/show` `*.context_length`) as its window, but Ollama runs with its own, often much smaller, context. Ollama then silently drops the oldest tokens (system prompt and tool definitions first), so the model stops calling tools or loops. Start Ollama with `OLLAMA_CONTEXT_LENGTH=131072` (or a Modelfile `PARAMETER num_ctx 131072`). Tony's `local` module (Task 7b) also caps opencode's view of the window at 131072, so compaction triggers before Ollama truncates. Pick a model whose `ollama show` lists the `tools` capability.
+    - Recommended local backend for Tony: llama.cpp `llama-server --jinja -c 131072 -fa on --cache-type-k q8_0 --cache-type-v q8_0`. The context and template are explicit, and `/props` shows the template in use.
+    - 128k needs a model trained for it. If the model's native context is shorter (e.g. 32k), enable YaRN (`--rope-scaling yarn --rope-scale 4 --yarn-orig-ctx 32768`) or pick a model with native 128k+.
+    - Memory: the KV cache grows linearly with context. A q8_0 KV cache halves it compared with f16. Ollama equivalents: `OLLAMA_FLASH_ATTENTION=1`, `OLLAMA_KV_CACHE_TYPE=q8_0`.
 
 - [ ] **Step 5: Verify automated checks.** `bun test` (all files PASS) and `bun run typecheck` (exit 0).
 
@@ -412,6 +418,49 @@
   5. Record the outcome in the PR description. If step 3 shows no `Blocked:`, the adapter mapping is wrong: stop and report.
 
 - [ ] **Step 7: Commit.** `git add -A && git commit -m "feat: tony plugin entry and config template"`
+
+---
+
+### Task 7b: Local context window sync
+
+**Files:**
+- Create: `packages/opencode-plugin/src/local/context.ts`
+- Modify: `packages/opencode-plugin/src/host.ts` (add `onModels`)
+- Modify: `packages/opencode-plugin/src/index.ts` (adapter for `onModels`; call `registerLocalContext`)
+- Test: `packages/opencode-plugin/test/local-context.test.ts`
+
+**Why:** opencode takes an Ollama model's trained maximum as its window (e.g. 262144), so compaction never triggers before Ollama truncates at its runtime size. Capping opencode's view at the server's real window (`local.contextLimit`, default 131072) makes compaction trigger in time.
+
+**Interfaces:**
+- Consumes: `LocalOptions` (Task 1), `isLocal` (Task 5), `Host` (Task 4).
+- Produces:
+  ```ts
+  // host.ts additions
+  export interface ModelEntry { providerID: string; id: string; context: number | undefined }
+  export interface ContextCap { providerID: string; id: string; context: number }
+  // Host gains:
+  onModels(plan: (models: readonly ModelEntry[]) => readonly ContextCap[]): Promise<void>
+  // local/context.ts
+  export function planContextCaps(models: readonly ModelEntry[], local: LocalOptions): ContextCap[]
+  export async function registerLocalContext(host: Host, local: LocalOptions): Promise<void>
+  ```
+- Adapter: `ctx.model.transform((editor) => { const caps = plan(editor.list().map(m => ({providerID: m.providerID, id: m.id, context: m.limit?.context}))); caps.forEach(c => editor.update(c.providerID, c.id, (m) => { m.limit.context = c.context })) })`. Check the exact `limit` field path against `Model.Info` in `@opencode/schema` 2.2.1 when writing it; the typecheck must pass.
+- `createFakeHost` (Task 4) gains `models(entries): ContextCap[]`, which runs the registered plan.
+
+- [ ] **Step 1: Write the failing test.** Use `local = DEFAULTS.local`.
+  - `caps local models above the limit`: `{providerID: "ollama", id: "q", context: 262144}` gives `[{providerID: "ollama", id: "q", context: 131072}]`.
+  - `fills in unknown context`: `{providerID: "llamacpp", id: "m", context: undefined}` gives a cap of `131072`.
+  - `leaves smaller local windows alone`: `{providerID: "ollama", id: "s", context: 65536}` gives `[]`. A smaller real window is never raised.
+  - `ignores cloud models`: `{providerID: "anthropic", id: "x", context: 1000000}` gives `[]`.
+  - `registerLocalContext wires the plan`: a fake host given the first entry returns the same cap.
+
+- [ ] **Step 2: Run it.** `bun test packages/opencode-plugin/test/local-context.test.ts`: FAIL.
+
+- [ ] **Step 3: Implement `planContextCaps` and `registerLocalContext`.** Pure filter and map using `isLocal`.
+
+- [ ] **Step 4: Verify.** Run `bun test` (all PASS) and `bun run typecheck` (exit 0).
+
+- [ ] **Step 5: Commit.** `git add -A && git commit -m "feat: cap local model context to the server window so compaction triggers in time"`
 
 ---
 
