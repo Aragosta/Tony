@@ -16,7 +16,7 @@ export interface ConfigInput {
 
 export const LANGFUSE_PACKAGE = "@langfuse/opencode-observability-plugin@0.7.0"
 
-/** baseline = plain opencode; tony = config/opencode.json with the published package swapped for this checkout's plugin. */
+/** baseline = plain opencode; tony = config/opencode.json with the plugin placeholder pointed at this checkout's plugin. */
 export function buildConfig(input: ConfigInput): Record<string, unknown> {
   const config: Record<string, any> = {}
   if (input.variant === "tony") {

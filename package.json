@@ -6,7 +6,6 @@
     "packages/*"
   ],
   "scripts": {
-    "setup": "bun packages/setup/src/cli.ts",
     "test": "bun test",
     "typecheck": "bun run --filter '*' typecheck"
   }

@@ -1,6 +1,6 @@
 # Tony
 
-An [opencode](https://github.com/anomalyco/opencode) plugin that makes coding agents finish tasks correctly and efficiently, including small local models. It installs from npm as **`@aragosta/tony`** and works on **Windows, macOS and Linux**.
+A coding agent app for **macOS and Windows** that makes models, including small local ones, finish tasks correctly and efficiently. Tony is [opencode](https://github.com/anomalyco/opencode)'s desktop app and engine with Tony's brain built in: the same screens, plus the features below, always on. How the pieces fit and how opencode updates come in: [docs/architecture.md](docs/architecture.md).
 
 What Tony adds to plain opencode:
 - **Completion gate.** opencode treats "the model stopped talking" as done; Tony checks the evidence first. When the agent stops after changing files, Tony runs the project's checks: `typecheck`, `lint` and `test` scripts, `cargo test`, `go test`, `pytest` or `make test`, detected automatically. It sends the agent back, with the reason, when:
@@ -18,42 +18,13 @@ What Tony adds to plain opencode:
 - **Tony's system prompt.** Replaces opencode's 111-word default: verify before finishing, check every part of the request, stop after repeated failures, ask before destructive actions. Local models get extra rules.
 - **Local context sync.** Local models are capped at a 128k window, so compaction starts before the server truncates the prompt.
 
-## Install (Windows and macOS)
-> **Until `@aragosta/tony` is published on npm**, use [Quick setup from source](#quick-setup-from-source-before-the-npm-release-or-to-develop), one command.
-
-**1. Install opencode 2.2.1.** This needs [Node.js](https://nodejs.org) 18 or newer.
-```bash
-npm i -g @opencode/cli@2.2.1
-```
-
-**2. Add Tony to your global opencode config.** Create the file if it doesn't exist.
-
-| OS | Config file |
-|---|---|
-| macOS / Linux | `~/.config/opencode/opencode.json` |
-| Windows | `C:\Users\<you>\.config\opencode\opencode.json` |
-
-The minimal config:
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "plugins": [{ "package": "@aragosta/tony@1.0.0" }]
-}
-```
-The recommended config is [`config/opencode.json`](config/opencode.json): Tony, the todo list, background compaction, step caps, and a read-only `explore` subagent. Copy it into that file, or merge it if you already have one. opencode downloads Tony on the next start.
-
-**3. Use opencode as usual.** In any project:
-```bash
-opencode
-```
-To check Tony is active, ask "What's your name?" It answers "Tony". When the completion gate sends the agent back, you see a `Tony: …` row in the session.
-
-**Update:** change the version in the `package` line, for example `@aragosta/tony@1.0.1`. **Turn off:** remove the line.
+## Get Tony
+Tony ships as an app built from a pinned opencode version plus a few small patches (`desktop/`). There are no published downloads yet. The npm package and `bun run setup` from 1.0.0 are gone; Tony is no longer installed into an existing opencode.
 
 ## Options
-Put options next to the package:
+Tony's options live next to its plugin entry in the config the app loads (`config/opencode.json`):
 ```json
-{ "package": "@aragosta/tony@1.0.0", "options": { "gate": { "checks": ["npm test"] }, "loopGuard": { "blockAt": 4, "stopAt": 6 } } }
+{ "package": "{TONY_PLUGIN}", "options": { "gate": { "checks": ["npm test"] }, "loopGuard": { "blockAt": 4, "stopAt": 6 } } }
 ```
 
 | Option | Default | Meaning |
@@ -78,7 +49,7 @@ Then, with the same flags on both:
 ```bash
 llama-server -m model.gguf --jinja -c 131072 -fa on --cache-type-k q8_0 --cache-type-v q8_0 --port 8080
 ```
-Merge [`config/local-llamacpp.json`](config/local-llamacpp.json) into your `opencode.json` and run `opencode --model llamacpp/local`.
+Merge [`config/local-llamacpp.json`](config/local-llamacpp.json) into your opencode config (`~/.config/opencode/opencode.json`; on Windows `C:\Users\<you>\.config\opencode\opencode.json`) and pick `llamacpp/local` as the model.
 - `--jinja` makes llama-server use the model's own chat template and parse tool calls. Without it, many models print tool calls as plain text, which looks like a model narrating a call it never makes.
 - A context smaller than the conversation hides earlier tool calls from the model, so it repeats them. Set `-c` to the full 131072.
 
@@ -108,26 +79,6 @@ Pick a model whose `ollama show` lists the `tools` capability.
 
 **Memory.** The KV cache grows linearly with context. A `q8_0` cache uses about half the memory of `f16`, and needs flash attention.
 
-## Quick setup from source (before the npm release, or to develop)
-This needs [Node.js](https://nodejs.org) 18+, [Bun](https://bun.sh) and git. On macOS: `brew install node git`, then `curl -fsSL https://bun.sh/install | bash`.
-```bash
-git clone https://github.com/Aragosta/Tony ~/Tony && cd ~/Tony && bun run setup
-```
-Setup does five things:
-1. Installs opencode 2.2.1 if you don't have it.
-2. Adds Tony from this clone to your global opencode config. Your existing config is backed up first (`opencode.json.bak-<time>`), and your own settings and plugins are kept.
-3. Adds the recommended defaults where you haven't set your own.
-4. Runs a one-minute self-test: real opencode and Tony, with a scripted model.
-5. Prints what to run next.
-
-Options:
-- `--model llamacpp` or `--model ollama:<model>` (for example `ollama:qwen3-coder:30b`) also adds your local model.
-- `--npm` uses the published `@aragosta/tony` instead of the clone.
-- `--dry-run` shows the config without writing it.
-- `--no-test` skips the self-test.
-
-To update a from-source install: `git pull && bun install`.
-
 ## Eval
 The eval needs [Bun](https://bun.sh) and bash. On Windows, use Git Bash.
 ```bash
@@ -136,6 +87,7 @@ bun packages/eval/src/cli.ts --model llamacpp/local --repeat 3
 Runs the task suite in `evals/tasks/` with plain opencode and with Tony (this checkout's code), and writes a comparison to `evals/results/`. Compare **false done** (finished but wrong) and **pass rate** between the two. Without a model, `bun packages/eval/test/integration/ab.ts` runs the same comparison with a scripted model (needs `opencode` 2.2.1 on PATH). See `evals/README.md`.
 
 ## Develop
+Needs [Bun](https://bun.sh) 1.4.4, Node.js 18+ and opencode 2.2.1 (`npm i -g @opencode/cli@2.2.1`) for the integration tests.
 ```bash
 bun test            # unit tests
 ```
@@ -145,4 +97,4 @@ bun run typecheck   # tsc in every package
 ```bash
 TONY_INTEGRATION=1 bun test packages/eval/test/integration   # real opencode 2.2.1 + scripted model
 ```
-Only `packages/opencode-plugin/src/index.ts` imports `@opencode/plugin`. Everything else works through the `Host` interface in `src/host.ts`, so an opencode API change touches one file. OS-specific code lives in `src/platform.ts`. Releasing: `docs/publishing.md`. Research and roadmap: `docs/`.
+Only `packages/opencode-plugin/src/index.ts` imports `@opencode/plugin`. Everything else works through the `Host` interface in `src/host.ts`, so an opencode API change touches one file. OS-specific code lives in `src/platform.ts`. Architecture: `docs/architecture.md`. Research and roadmap: `docs/`.

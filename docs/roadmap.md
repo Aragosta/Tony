@@ -1,5 +1,7 @@
 # Tony roadmap (ranked)
 
+**Product (2026-10-30):** Tony is an app: opencode's desktop app and engine, pinned, plus a few patches, with this plugin always loaded. See `architecture.md`. App track: build from pinned source (done when CI builds macOS and Windows), daily opencode update PRs, then signing and published downloads, then Tony's own panels (gate status).
+
 Backbone: opencode **V2, pinned at 2.2.1** (the research read 2.2.0 source; the plans were checked against the published 2.2.1 plugin types; see `research/v1-vs-v2.md`). Every item is a module in the single Tony plugin (`packages/opencode-plugin`) or a config default. Research behind each item: `research/opencode-gaps.md`, `research/plugins-review.md`, `research/prompt-patterns.md`.
 
 Ranking rule: first what stops the agent from failing outright (loops, a bad prompt), then the measurement we need to tune everything else, then **whether the agent's "done" is true**, then context efficiency, then extras.

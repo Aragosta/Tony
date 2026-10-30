@@ -22,37 +22,18 @@ jobs:
           node-version: 22
       - run: bun install --frozen-lockfile
       - run: bun run typecheck
-      - name: Plugin and setup unit tests
-        run: bun test packages/opencode-plugin packages/setup
+      - name: Plugin unit tests
+        run: bun test packages/opencode-plugin
       # The eval drives opencode through bash scripts; on Windows that is Git Bash.
       - name: Eval unit tests
         if: runner.os != 'Windows'
         run: bun test packages/eval/test/events.test.ts packages/eval/test/report.test.ts packages/eval/test/tasks.test.ts packages/eval/test/run.test.ts
-      # The same one-command setup users run: installs opencode 2.2.1 and writes the config (to a temp dir here).
-      - name: Setup (bun run setup)
-        env:
-          OPENCODE_CONFIG_DIR: ${{ runner.temp }}/opencode-config
-        run: bun run setup --no-test
-      - name: Setup wrote a config that loads Tony
-        shell: bash
-        run: grep -q 'packages.*opencode-plugin' "$RUNNER_TEMP/opencode-config/opencode.json"
+      # The integration tests drive a real opencode, the same engine version the app bundles.
+      - name: Install opencode 2.2.1
+        run: npm i -g @opencode/cli@2.2.1
       - name: Integration (real opencode + scripted model)
         shell: bash
         env:
           TONY_INTEGRATION: "1"
         run: bun test packages/eval/test/integration
 
-  package:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Published files are only src, README, LICENSE and package.json
-        working-directory: packages/opencode-plugin
-        run: |
-          npm pack --dry-run --json > pack.json
-          node -e '
-            const files = require("./pack.json")[0].files.map((f) => f.path)
-            const bad = files.filter((f) => !/^(src\/.*\.ts|README\.md|LICENSE|package\.json)$/.test(f))
-            if (bad.length || !files.includes("src/index.ts")) { console.error("unexpected:", bad); process.exit(1) }
-            console.log(files.length, "files ok")
-          '
