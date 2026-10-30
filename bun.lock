@@ -5,6 +5,14 @@
     "": {
       "name": "tony",
     },
+    "packages/desktop": {
+      "name": "@tony/desktop",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@types/bun": "1.4.4",
+        "typescript": "5.9.3",
+      },
+    },
     "packages/eval": {
       "name": "@tony/eval",
       "version": "0.1.0",
@@ -211,6 +219,8 @@
     "@smithy/util-utf8": ["@smithy/util-utf8@4.2.2", "", { "dependencies": { "@smithy/util-buffer-from": "^4.2.2", "tslib": "^2.6.2" } }, "sha512-75MeYpjdWRe8M5E3AW0O4Cx3UadweS+cwdXjwYGBW5h/gxxnbeZ877sLPX/ZJA9GVTlL/qG0dXP29JWFCD1Ayw=="],
 
     "@standard-schema/spec": ["@standard-schema/spec@1.1.0", "", {}, "sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w=="],
+
+    "@tony/desktop": ["@tony/desktop@workspace:packages/desktop"],
 
     "@tony/eval": ["@tony/eval@workspace:packages/eval"],
 

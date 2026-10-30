@@ -19,7 +19,17 @@ What Tony adds to plain opencode:
 - **Local context sync.** Local models are capped at a 128k window, so compaction starts before the server truncates the prompt.
 
 ## Get Tony
-Tony ships as an app built from a pinned opencode version plus a few small patches (`desktop/`). There are no published downloads yet. The npm package and `bun run setup` from 1.0.0 are gone; Tony is no longer installed into an existing opencode.
+There are no published downloads yet. CI builds the app for macOS and Windows on every push (workflow artifacts). To build it yourself (needs [Bun](https://bun.sh) 1.4.4, Node.js 18+ and git):
+```bash
+git clone https://github.com/Aragosta/Tony && cd Tony && bun install && bun run --cwd packages/desktop build
+```
+The app lands in `packages/desktop/.build/opencode/packages/desktop/dist/`. The builds are unsigned, so the OS warns on first open:
+- **macOS:** right-click the app, then **Open**.
+- **Windows:** **More info**, then **Run anyway**.
+
+Tony uses your opencode config (`~/.config/opencode/opencode.json`; on Windows `C:\Users\<you>\.config\opencode\opencode.json`) for models, providers and MCP servers. It keeps its own sessions. To check Tony is active, ask "What's your name?" It answers "Tony". When the completion gate sends the agent back, you see a `Tony: …` row in the session.
+
+The npm package and `bun run setup` from 1.0.0 are gone; Tony is no longer installed into an existing opencode. How the app is put together: [packages/desktop/README.md](packages/desktop/README.md).
 
 ## Options
 Tony's options live next to its plugin entry in the config the app loads (`config/opencode.json`):
@@ -96,5 +106,8 @@ bun run typecheck   # tsc in every package
 ```
 ```bash
 TONY_INTEGRATION=1 bun test packages/eval/test/integration   # real opencode 2.2.1 + scripted model
+```
+```bash
+bun run --cwd packages/desktop build   # the Tony app; checks in packages/desktop/README.md
 ```
 Only `packages/opencode-plugin/src/index.ts` imports `@opencode/plugin`. Everything else works through the `Host` interface in `src/host.ts`, so an opencode API change touches one file. OS-specific code lives in `src/platform.ts`. Architecture: `docs/architecture.md`. Research and roadmap: `docs/`.

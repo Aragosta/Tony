@@ -9,7 +9,7 @@ import { runScripted } from "./harness.ts"
 
 // Opted in means required: a missing or wrong opencode fails here instead of silently skipping the suite.
 const enabled = process.env.TONY_INTEGRATION === "1"
-const OPENCODE_VERSION = readFileSync(join(import.meta.dir, "../../../../desktop/opencode-version"), "utf8").trim()
+const OPENCODE_VERSION = readFileSync(join(import.meta.dir, "../../../desktop/opencode-version"), "utf8").trim()
 
 const REPO = {
   "package.json": JSON.stringify({ name: "fixture", private: true, type: "module", scripts: { test: "bun test" } }),

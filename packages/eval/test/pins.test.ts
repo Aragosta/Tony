@@ -5,9 +5,9 @@ import { join } from "node:path"
 // The Tony app, its brain and the tests must all use one opencode version; an update bumps them together.
 const root = join(import.meta.dir, "../../..")
 const read = (path: string) => readFileSync(join(root, path), "utf8")
-const version = read("desktop/opencode-version").trim()
+const version = read("packages/desktop/opencode-version").trim()
 
-test("desktop/opencode-version is a plain version", () => {
+test("packages/desktop/opencode-version is a plain version", () => {
   expect(version).toMatch(/^\d+\.\d+\.\d+$/)
 })
 

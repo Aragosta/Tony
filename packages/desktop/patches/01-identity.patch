@@ -1,0 +1,20 @@
+diff --git a/packages/desktop/src/main/constants.ts b/packages/desktop/src/main/constants.ts
+index 7997267..9212a4b 100644
+--- a/packages/desktop/src/main/constants.ts
++++ b/packages/desktop/src/main/constants.ts
+@@ -11,13 +11,13 @@ export const VERSION = app.isPackaged ? app.getVersion() : (process.env.OPENCODE
+ const appNames: Record<string, string> = {
+   dev: "OpenCode Dev",
+   beta: "OpenCode Beta",
+-  prod: "OpenCode",
++  prod: "Tony",
+ }
+ 
+ const appIDs: Record<string, string> = {
+   dev: "ai.opencode.desktop.dev",
+   beta: "ai.opencode.desktop.beta",
+-  prod: "ai.opencode.desktop",
++  prod: "ai.aragosta.tony",
+ }
+ 
+ // Local renderer/server mode keeps the dev application identity.
