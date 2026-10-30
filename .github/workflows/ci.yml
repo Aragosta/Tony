@@ -22,8 +22,8 @@ jobs:
           node-version: 22
       - run: bun install --frozen-lockfile
       - run: bun run typecheck
-      - name: Plugin unit tests
-        run: bun test packages/opencode-plugin
+      - name: Plugin unit tests and version pins
+        run: bun test packages/opencode-plugin packages/eval/test/pins.test.ts
       # The eval drives opencode through bash scripts; on Windows that is Git Bash.
       - name: Eval unit tests
         if: runner.os != 'Windows'

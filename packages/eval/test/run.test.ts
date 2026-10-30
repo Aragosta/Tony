@@ -105,3 +105,12 @@ test("opencode binary is used as given outside Windows", () => {
   expect(opencodeBinary("opencode", "linux")).toBe("opencode")
   expect(opencodeBinary("/x/opencode", "win32")).toBe("/x/opencode")
 })
+
+test("TONY_OPENCODE_BIN picks the engine, for example the one bundled in the Tony app", () => {
+  const env = { TONY_OPENCODE_BIN: "/Applications/Tony.app/Contents/Resources/opencode-cli" }
+  expect(opencodeBinary("opencode", "darwin", env)).toBe(env.TONY_OPENCODE_BIN)
+  expect(opencodeBinary("opencode", "win32", env)).toBe(env.TONY_OPENCODE_BIN)
+  // An explicit binary (the eval's --opencode flag) still wins.
+  expect(opencodeBinary("/x/opencode", "linux", env)).toBe("/x/opencode")
+  expect(opencodeBinary("opencode", "linux", {})).toBe("opencode")
+})

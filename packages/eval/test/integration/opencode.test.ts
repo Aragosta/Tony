@@ -1,11 +1,15 @@
-// Real opencode 2.2.1 + Tony against a scripted model. Opt in: TONY_INTEGRATION=1 bun test packages/eval/test/integration
+// Real opencode (the pinned version) + Tony against a scripted model. Opt in: TONY_INTEGRATION=1 bun test packages/eval/test/integration
+// TONY_OPENCODE_BIN runs the suite against another engine, such as the one bundled in the Tony app.
 import { describe, expect, test } from "bun:test"
 import { spawnSync } from "node:child_process"
+import { readFileSync } from "node:fs"
+import { join } from "node:path"
 import { opencodeBinary } from "../../src/opencode-bin.ts"
 import { runScripted } from "./harness.ts"
 
 // Opted in means required: a missing or wrong opencode fails here instead of silently skipping the suite.
 const enabled = process.env.TONY_INTEGRATION === "1"
+const OPENCODE_VERSION = readFileSync(join(import.meta.dir, "../../../../desktop/opencode-version"), "utf8").trim()
 
 const REPO = {
   "package.json": JSON.stringify({ name: "fixture", private: true, type: "module", scripts: { test: "bun test" } }),
@@ -16,8 +20,8 @@ const GATE_MESSAGE = "Before you finish:"
 const count = (log: string[], text: string) => log.filter((l) => l.includes(text)).length
 
 describe.skipIf(!enabled)("opencode integration", () => {
-  test("opencode 2.2.1 is installed", () => {
-    expect(spawnSync(opencodeBinary(), ["--version"], { encoding: "utf8" }).stdout ?? "").toContain("2.2.1")
+  test(`opencode ${OPENCODE_VERSION} is installed`, () => {
+    expect(spawnSync(opencodeBinary(), ["--version"], { encoding: "utf8" }).stdout ?? "").toContain(OPENCODE_VERSION)
   })
 
   test("loop guard (phase 1 regression)", async () => {
