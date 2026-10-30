@@ -134,7 +134,8 @@ export async function registerGate(host: Host, opts: GateOptions, deps: GateDeps
     let status: GateStatus = decision.status
     let pending = decision.pending
     let judge: StatusRecord["judge"]
-    if (opts.judge && pending.length === 0 && evidence.changedFiles.length > 0) {
+    // A blocked report already says the work isn't done; the judge has nothing to add.
+    if (opts.judge && status !== "needs-user" && pending.length === 0 && evidence.changedFiles.length > 0) {
       const verdict = parseVerdict(await host.judge(e.sessionID, judgePrompt(st.checks)))
       judge = verdict?.verdict ?? "invalid"
       if (verdict?.verdict === "continue") {

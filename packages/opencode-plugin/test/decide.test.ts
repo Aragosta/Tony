@@ -10,6 +10,7 @@ const evidence = (over: Partial<TurnEvidence> = {}): TurnEvidence => ({
   testTampering: [],
   passedChecks: [],
   refusedEdits: [],
+  fallbacks: [],
   ...over,
 })
 const input = (over: Partial<GateInput> = {}): GateInput => ({
@@ -102,4 +103,34 @@ test("refused edits that were never redone send the agent back", () => {
   expect(d).toMatchObject({ kind: "continue", keys: ["refused:test/a.test.ts"] })
   expect(d.kind === "continue" && d.message).toContain("test/a.test.ts: Edit refused: read it first")
   expect(d.kind === "continue" && d.description).toBe("Tony: edits refused")
+})
+
+test("a Blocked: answer ends as needs-user without nudging about the failures it reports", () => {
+  const failure = { tool: "shell", summary: "`bun test` exited with code 1", key: "k" }
+  for (const finalText of ["Blocked: STATUS_URL is not set, so the test can't reach the service.", "**Blocked:** no STATUS_URL"]) {
+    const d = decide(input({ finalText, checks: failing, evidence: evidence({ lastFailure: failure, openTodos: ["make test pass"] }) }))
+    expect(d).toEqual({ kind: "stop", status: "needs-user", pending: [] })
+  }
+})
+
+test("Blocked: does not hide a stubbed test or an added fallback", () => {
+  const d = decide(input({ finalText: "Blocked: no STATUS_URL", evidence: evidence({ testTampering: ["test/api.test.ts: 2 mock(s) or stub(s) added"] }) }))
+  expect(d.kind).toBe("continue")
+  const f = decide(input({ finalText: "Blocked: no STATUS_URL", evidence: evidence({ fallbacks: ["src/api.ts: default added for missing setting STATUS_URL"] }) }))
+  expect(f.kind).toBe("continue")
+  if (f.kind !== "continue") return
+  expect(f.message).toContain("default added for missing setting STATUS_URL")
+  expect(f.message).toContain("Blocked:")
+  expect(f.description).toBe("Tony: defaults added for missing settings")
+})
+
+test("a reply that mentions being blocked later is not a Blocked: answer", () => {
+  expect(decide(input({ finalText: "Fixed it. I was blocked: earlier by a typo.", checks: failing })).kind).toBe("continue")
+})
+
+test("the nudge footer points to the Blocked: exit", () => {
+  const d = decide(input({ checks: failing }))
+  if (d.kind !== "continue") throw new Error("expected continue")
+  expect(d.message).toContain("start your answer with `Blocked:`")
+  expect(d.message).toContain("Pick up where you left off")
 })

@@ -6,7 +6,7 @@ import { fingerprint } from "../loop/fingerprint.ts"
 import { resultText } from "../../tool-result.ts"
 import { toPosix } from "../../platform.ts"
 import { normalizeCheck } from "../verify/detect.ts"
-import { isTestFile, patchFiles, tamperFindings } from "./tamper.ts"
+import { fallbackFindings, isTestFile, patchFiles, tamperFindings } from "./tamper.ts"
 
 export interface Failure {
   tool: string
@@ -27,6 +27,8 @@ export interface TurnEvidence {
   passedChecks: string[]
   /** Edits another hook refused, per file, that no later completed edit of that file made up for. */
   refusedEdits: RefusedEdit[]
+  /** Source files that gained a literal default for an environment setting this turn. */
+  fallbacks: string[]
 }
 
 export interface RefusedEdit {
@@ -41,8 +43,8 @@ interface Turn {
   todos: string[]
   passed: Set<string>
   refused: Map<string, string>
-  /** Test file content before this turn first changed it; null when it did not exist. */
-  testBaselines: Map<string, string | null>
+  /** File content before this turn first changed it; null when it did not exist. */
+  baselines: Map<string, string | null>
 }
 
 const MUTATIONS = new Set(["edit", "write", "patch"])
@@ -97,7 +99,7 @@ export class EvidenceTracker {
   private turn(sessionID: string): Turn {
     let t = this.turns.get(sessionID)
     if (!t) {
-      t = { changed: new Set(), changeSeq: 0, todos: [], passed: new Set(), refused: new Map(), testBaselines: new Map() }
+      t = { changed: new Set(), changeSeq: 0, todos: [], passed: new Set(), refused: new Map(), baselines: new Map() }
       this.turns.set(sessionID, t)
     }
     return t
@@ -111,7 +113,7 @@ export class EvidenceTracker {
     if (!MUTATIONS.has(e.tool)) return
     const t = this.turn(e.sessionID)
     for (const path of targets(e.tool, e.input, directory)) {
-      if (isTestFile(path) && !t.testBaselines.has(path)) t.testBaselines.set(path, readOrNull(resolve(directory, path)))
+      if (!t.baselines.has(path)) t.baselines.set(path, readOrNull(resolve(directory, path)))
     }
   }
 
@@ -183,10 +185,12 @@ export class EvidenceTracker {
   async evidence(sessionID: string, directory: string): Promise<TurnEvidence> {
     const t = this.turn(sessionID)
     const testTampering: string[] = []
+    const fallbacks: string[] = []
     for (const path of [...t.changed].sort()) {
-      if (!isTestFile(path)) continue
-      const before = t.testBaselines.has(path) ? t.testBaselines.get(path)! : await this.headContent(path, directory)
-      testTampering.push(...tamperFindings(path, before, readOrNull(resolve(directory, path))))
+      const before = t.baselines.has(path) ? t.baselines.get(path)! : await this.headContent(path, directory)
+      const after = readOrNull(resolve(directory, path))
+      if (isTestFile(path)) testTampering.push(...tamperFindings(path, before, after))
+      else fallbacks.push(...fallbackFindings(path, before, after))
     }
     return {
       changedFiles: [...t.changed].sort(),
@@ -195,11 +199,12 @@ export class EvidenceTracker {
       openTodos: t.todos,
       testTampering,
       passedChecks: [...t.passed].sort(),
+      fallbacks,
       refusedEdits: [...t.refused].sort(([a], [b]) => a.localeCompare(b)).map(([path, message]) => ({ path, message })),
     }
   }
 
-  /** Baseline for a test file changed without a tool call we saw (for example by a shell command). */
+  /** Baseline for a file changed without a tool call we saw (for example by a shell command). */
   private headContent(path: string, directory: string): Promise<string | null> {
     return new Promise((resolve) =>
       execFile("git", ["show", `HEAD:${path}`], { cwd: directory, maxBuffer: 16 * 1024 * 1024, timeout: 10000 }, (err, stdout) =>

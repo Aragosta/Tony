@@ -4,7 +4,8 @@ import type { Failure, RefusedEdit } from "./evidence.ts"
 const OUTPUT_CHARS = 3000
 
 export const HEADER = "Before you finish:"
-export const FOOTER = "If you cannot fix something, stop and tell the user plainly what is still wrong and why."
+export const FOOTER =
+  "Pick up where you left off; don't repeat your earlier answer. If you can't finish because something outside the code is missing (a service, credentials, an environment variable), start your answer with `Blocked:` and say what is missing and what you tried."
 
 export const checksSection = (command: string, output: string) =>
   `The project's checks fail:\n<check command="${command}">\n${output.slice(-OUTPUT_CHARS)}\n</check>\nFix the cause. Do not weaken, skip or delete tests to make them pass. If a failure is unrelated to your change and was there before, say so instead of fixing it.`
@@ -17,6 +18,9 @@ export const refusedSection = (edits: readonly RefusedEdit[]) =>
 
 export const tamperSection = (findings: readonly string[]) =>
   `You changed existing tests:\n${findings.map((f) => "- " + f).join("\n")}\nIf the user did not ask for this, restore them and fix the code instead. If it was intended, say so in your answer.`
+
+export const fallbackSection = (findings: readonly string[]) =>
+  `You added defaults for settings the environment should provide:\n${findings.map((f) => "- " + f).join("\n")}\nA default like this makes the code run without the real service or credential, which hides the problem. Remove it unless the user asked for it. If the setting is missing, start your answer with \`Blocked:\` and say so.`
 
 export const todosSection = (todos: readonly string[]) =>
   `Your todo list has open items:\n${todos.map((t) => "- " + t).join("\n")}\nFinish them, or mark the ones you won't do as cancelled and say why.`

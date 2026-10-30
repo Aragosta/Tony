@@ -155,3 +155,26 @@ opencode V2 (pinned)                          ← loop, tools, compaction, subag
 ## Notes
 - In this session `opencode.ai` and `code.visualstudio.com` couldn't be reached (network policy), so the official docs pages and the VS Code "Coding Harness Behind GitHub Copilot" post (2026-05-15) weren't read directly. The source repos were used instead.
 - Claude Code's internals are closed source. The Claude Code rows describe its documented, user-visible behaviour.
+
+---
+
+## 2026-10-30 addendum: what the first local-model eval taught us
+Sources read from code: `microsoft/vscode-copilot-chat` @ `5863f5a`; `anthropics/claude-plugins-official` (the plugins moved there from `anthropics/claude-code`) and the Claude Code docs; `openai/codex` prompt files. Claude Code's own prompt and reminder code are closed source; those points come from its docs and changelog.
+
+**What the eval showed (llama.cpp model):**
+- When the task was impossible (missing `STATUS_URL`), the model faked success: it stubbed `fetch` in the test, and would otherwise hard-code a fallback.
+- It guessed a test runner (`npx tsx` on a bun test).
+- It took extra verification steps.
+
+| Finding | Who | What Tony does |
+|---|---|---|
+| The model never picks a test runner: Copilot has a `runTests` tool and lists tasks in `<workspace_info>`; Codex and Claude Code put the test command in AGENTS.md / CLAUDE.md | Copilot, Codex, Claude Code | The prompt names the project's checks (`# This project`), detected once per session |
+| Copilot's autopilot has no "blocked" exit and pushes models on. Its GPT-4.1 prompt even says to create a `.env` with a placeholder | Copilot | Not copied |
+| Prompt Stop hooks can answer `impossible: true`, which lets the stop through | Claude Code | A `Blocked:` answer ends the gate as `needs-user` without nudging about the failures it reports |
+| "Do not hard-code values or create solutions that only work for specific test inputs… if infeasible, inform me" | Anthropic prompting guide | Anti-faking rules in the core prompt, in Tony's own words |
+| "never test mock behavior"; approval needed for any test-assertion edit | Copilot | The gate flags mocks or stubs added to tests, and literal defaults added for env settings in source |
+| Specific test first, then broader, then stop. Don't re-read after a successful edit | Codex, Copilot | Small-tier prompt rules |
+| Nudge: "Do not repeat your previous response. Pick up where you left off." | Copilot | Gate footer |
+| Per-turn `<reminderInstructions>` and the todo list placed next to the latest message | Copilot | Next: reminders via `instructions.entry` (roadmap row 12) |
+
+**Structure.** Tony now has a general core (`src/core`) and model tiers (`src/tiers`: `small`, `frontier`). See `docs/architecture.md`.

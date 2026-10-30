@@ -31,6 +31,30 @@ export function tamperFindings(path: string, before: string | null, after: strin
   return findings
 }
 
+// A default for a setting the environment should provide (`process.env.X ?? "..."`, `os.getenv("X", "...")`) makes the
+// code run without it: the usual way to fake past a missing service or credential.
+const FALLBACKS = [
+  /process\.env(?:\.(\w+)|\[["'`](\w+)["'`]\])\s*(?:\?\?|\|\|)\s*["'`]/g,
+  /os\.(?:environ\.get|getenv)\(\s*["'](\w+)["']\s*,\s*["']/g,
+]
+
+function fallbackNames(text: string): string[] {
+  return FALLBACKS.flatMap((re) => [...text.matchAll(re)].map((m) => m[1] ?? m[2]!))
+}
+
+/** Settings that gained a literal default in a source file; `null` content means the file did not exist. */
+export function fallbackFindings(path: string, before: string | null, after: string | null): string[] {
+  if (after === null) return []
+  const had = fallbackNames(before ?? "")
+  const added: string[] = []
+  for (const name of fallbackNames(after)) {
+    const i = had.indexOf(name)
+    if (i >= 0) had.splice(i, 1)
+    else if (!added.includes(name)) added.push(name)
+  }
+  return added.map((name) => `${path}: default added for missing setting ${name}`)
+}
+
 /** Files named in an opencode patch (`*** Add|Update|Delete File: <path>`). */
 export function patchFiles(patchText: string): { kind: "add" | "update" | "delete"; path: string }[] {
   return [...patchText.matchAll(/^\*\*\* (Add|Update|Delete) File: (.+)$/gm)].map((m) => ({

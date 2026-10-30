@@ -14,10 +14,16 @@ export function toolGuidance(tools: readonly string[]): string[] {
   return GUIDANCE.filter(([tool]) => present.has(tool)).map(([, line]) => line)
 }
 
-/** The core prompt every model gets (base rules and guidance for its tools), then the tier's own text. */
-export function assemblePrompt(tools: readonly string[], tier: Tier): string {
+/** The project's check commands, so the model runs these instead of guessing a test runner. */
+export function checksSection(checks: readonly string[]): string {
+  return `# This project\n- Checks: ${checks.map((c) => "`" + c + "`").join(", ")}. Run them to verify your change; they also run automatically when you finish.`
+}
+
+/** The core prompt every model gets (base rules, guidance for its tools, the project's checks), then the tier's text. */
+export function assemblePrompt(tools: readonly string[], tier: Tier, checks: readonly string[] = []): string {
   let prompt = BASE
   const lines = toolGuidance(tools)
   if (lines.length > 0) prompt += "\n\n# Tools\n" + lines.join("\n")
+  if (checks.length > 0) prompt += "\n\n" + checksSection(checks)
   return prompt + "\n\n" + tier.prompt
 }

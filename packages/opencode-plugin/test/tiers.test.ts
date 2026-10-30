@@ -62,3 +62,13 @@ test("guidance appears under a heading", () => {
 test("the base prompt asks for a check of every part of the request", () => {
   expect(BASE).toContain("re-read the user's request")
 })
+
+test("the base prompt forbids faking and offers the Blocked: exit", () => {
+  expect(BASE).toContain("Never hard-code expected outputs")
+  expect(BASE).toContain("start your final answer with `Blocked:`")
+})
+
+test("small models get a verification order and no re-reads after edits", () => {
+  expect(small.prompt).toContain("Verify in this order, then stop")
+  expect(small.prompt).toContain("Don't re-read a file after a successful edit")
+})

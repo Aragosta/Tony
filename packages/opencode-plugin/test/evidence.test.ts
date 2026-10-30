@@ -106,7 +106,7 @@ test("beginTurn resets", async () => {
   t.after(done("edit", { path: "a.ts" }), dir)
   t.beginTurn("s")
   const e = await t.evidence("s", dir)
-  expect(e).toEqual({ changedFiles: [], changeSeq: 0, openTodos: [], testTampering: [], passedChecks: [], refusedEdits: [] })
+  expect(e).toEqual({ changedFiles: [], changeSeq: 0, openTodos: [], testTampering: [], passedChecks: [], refusedEdits: [], fallbacks: [] })
 })
 
 test("shell-changed test files are compared with git HEAD", async () => {
@@ -231,4 +231,14 @@ test("Windows runner names count as checks", () => {
   expect(runsCheck("npm.cmd test")).toBe(true)
   expect(runsCheck("C:\\tools\\bun.exe test")).toBe(true)
   expect(runsCheck("grep.exe test x")).toBe(false)
+})
+
+test("a default added for a missing setting in source is a fallback", async () => {
+  const { t, dir } = setup()
+  writeFileSync(join(dir, "api.ts"), "const url = process.env.STATUS_URL\n")
+  const e = { tool: "edit", sessionID: "s", input: { path: "api.ts" } }
+  await t.before(e, dir)
+  writeFileSync(join(dir, "api.ts"), 'const url = process.env.STATUS_URL ?? "http://localhost:1"\n')
+  t.after(done("edit", { path: "api.ts" }), dir)
+  expect((await t.evidence("s", dir)).fallbacks).toEqual(["api.ts: default added for missing setting STATUS_URL"])
 })

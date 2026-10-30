@@ -1,5 +1,5 @@
 import type { TurnEvidence } from "./evidence.ts"
-import { ANNOUNCE_SECTION, checksSection, failureSection, FOOTER, HEADER, refusedSection, tamperSection, todosSection } from "./text.ts"
+import { ANNOUNCE_SECTION, checksSection, failureSection, fallbackSection, FOOTER, HEADER, refusedSection, tamperSection, todosSection } from "./text.ts"
 
 export interface CheckRun {
   command: string
@@ -47,12 +47,23 @@ export function announcesAction(finalText: string): boolean {
   return ANNOUNCE.test(last)
 }
 
+// "Blocked: STATUS_URL is not set", also as "**Blocked:**" or "## Blocked:".
+const BLOCKED = /^[\s*_#>]*blocked\s*[*_]*\s*:/i
+
+/** The reply opens with `Blocked:`: the agent says it can't finish without something outside the code. */
+export function reportsBlocked(finalText: string): boolean {
+  return BLOCKED.test(finalText.trim())
+}
+
 function reasons(input: GateInput): Reason[] {
   const { evidence } = input
   const out: Reason[] = []
+  // A blocked agent's failing checks, failed command and unfinished todos are the evidence of the blocker, not work
+  // left to do. What would fake past the blocker (changed tests, new defaults, refused edits) still counts.
+  const blocked = reportsBlocked(input.finalText)
   const failed = input.checks.find((c) => !c.ok && !c.skipped)
-  if (failed) out.push({ key: `checks:${failed.command}`, label: "checks failing", section: checksSection(failed.command, failed.output) })
-  if (evidence.lastFailure) {
+  if (failed && !blocked) out.push({ key: `checks:${failed.command}`, label: "checks failing", section: checksSection(failed.command, failed.output) })
+  if (evidence.lastFailure && !blocked) {
     const f = evidence.lastFailure
     out.push({ key: `failure:${f.key}`, label: "last action failed", section: failureSection(f) })
   }
@@ -62,10 +73,13 @@ function reasons(input: GateInput): Reason[] {
   if (evidence.testTampering.length > 0) {
     out.push({ key: `tamper:${evidence.testTampering.join("|")}`, label: "tests changed", section: tamperSection(evidence.testTampering) })
   }
-  if (evidence.openTodos.length > 0) {
+  if (evidence.fallbacks.length > 0) {
+    out.push({ key: `fallback:${evidence.fallbacks.join("|")}`, label: "defaults added for missing settings", section: fallbackSection(evidence.fallbacks) })
+  }
+  if (evidence.openTodos.length > 0 && !blocked) {
     out.push({ key: `todos:${evidence.openTodos.join("|")}`, label: "open todos", section: todosSection(evidence.openTodos) })
   }
-  if (announcesAction(input.finalText)) out.push({ key: "announce", label: "unfinished action", section: ANNOUNCE_SECTION })
+  if (!blocked && announcesAction(input.finalText)) out.push({ key: "announce", label: "unfinished action", section: ANNOUNCE_SECTION })
   return out
 }
 
@@ -81,6 +95,7 @@ export function decide(input: GateInput): Decision {
     }
   }
   if (all.length > 0) return { kind: "stop", status: "unresolved", pending: all.map((r) => r.key) }
+  if (reportsBlocked(input.finalText)) return { kind: "stop", status: "needs-user", pending: [] }
   const ran = input.checks.filter((c) => !c.skipped)
   if (ran.length > 0 && ran.every((c) => c.ok)) return { kind: "stop", status: "verified", pending: [] }
   if (input.evidence.changedFiles.length === 0) return { kind: "stop", status: "no-changes", pending: [] }

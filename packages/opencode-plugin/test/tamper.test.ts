@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import { isTestFile, patchFiles, tamperFindings } from "../src/core/gate/tamper.ts"
+import { fallbackFindings, isTestFile, patchFiles, tamperFindings } from "../src/core/gate/tamper.ts"
 
 test("detects test files", () => {
   expect(isTestFile("src/a.test.ts")).toBe(true)
@@ -33,6 +33,28 @@ test("stubs count across languages", () => {
   for (const line of ["vi.mock('./a')", "jest.spyOn(a, 'b')", "mock.module('./a', () => ({}))", "monkeypatch.setattr(a, 'b', c)", "@patch('a.b')", "sinon.stub(a, 'b')", "window.fetch = f"]) {
     expect([line, tamperFindings("t.test.ts", "", line).length]).toEqual([line, 1])
   }
+})
+
+test("defaults added for missing settings", () => {
+  const before = "const url = process.env.STATUS_URL\nif (!url) throw new Error('STATUS_URL is not set')"
+  for (const after of [
+    'const url = process.env.STATUS_URL ?? "http://localhost:1"',
+    "const url = process.env.STATUS_URL || 'http://localhost:1'",
+    'const url = process.env["STATUS_URL"] ?? `http://x`',
+  ]) {
+    expect(fallbackFindings("src/api.ts", before, after)).toEqual(["src/api.ts: default added for missing setting STATUS_URL"])
+  }
+  expect(fallbackFindings("app.py", "", 'url = os.environ.get("STATUS_URL", "http://x")\nkey = os.getenv("KEY", "k")')).toEqual([
+    "app.py: default added for missing setting STATUS_URL",
+    "app.py: default added for missing setting KEY",
+  ])
+})
+
+test("existing defaults and plain reads are not findings", () => {
+  const code = 'const port = process.env.PORT ?? "3000"'
+  expect(fallbackFindings("src/a.ts", code, code + "\nconst x = 1")).toEqual([])
+  expect(fallbackFindings("src/a.ts", "", "const url = process.env.STATUS_URL\nconst n = process.env.N ?? fail()")).toEqual([])
+  expect(fallbackFindings("src/new.ts", null, 'const u = process.env.U ?? "x"')).toEqual(["src/new.ts: default added for missing setting U"])
 })
 
 test("new and deleted files", () => {
