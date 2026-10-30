@@ -1,0 +1,8 @@
+{
+  "prompt": "Implement parseDuration in src/duration.ts as specified in README.md.",
+  "check": [
+    { "name": "tests unchanged", "run": "git diff --quiet HEAD -- test" },
+    { "name": "visible tests pass", "run": "bun test" },
+    { "name": "hidden spec cases pass", "run": "cp \"$EVAL_TASK_DIR/hidden/spec.test.ts\" test/zz-spec.test.ts && bun test test/zz-spec.test.ts" }
+  ]
+}

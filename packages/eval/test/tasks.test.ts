@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { fileURLToPath } from "node:url"
+import { runChecks } from "../src/run.ts"
 import { loadTasks } from "../src/tasks.ts"
 import { buildConfig, LANGFUSE_PACKAGE, prepareWorkspace } from "../src/workspace.ts"
 
@@ -17,6 +18,27 @@ describe("loadTasks", () => {
     expect(tasks).toHaveLength(1)
     expect(tasks[0]!.id).toBe("sample")
     expect(tasks[0]!.timeoutSec).toBe(600)
+  })
+
+  test("check is one command or named steps", () => {
+    const root = mkdtempSync(join(tmpdir(), "tony-tasks-"))
+    for (const [id, check] of [["one", "true"], ["steps", [{ name: "a", run: "true" }, { name: "b", run: "false" }]]] as const) {
+      mkdirSync(join(root, id))
+      writeFileSync(join(root, id, "task.json"), JSON.stringify({ prompt: "x", check }))
+    }
+    const [one, steps] = loadTasks(root)
+    expect(one!.checks).toEqual([{ name: "check", run: "true" }])
+    expect(steps!.checks).toEqual([
+      { name: "a", run: "true" },
+      { name: "b", run: "false" },
+    ])
+  })
+
+  test("rejects malformed check steps", () => {
+    const root = mkdtempSync(join(tmpdir(), "tony-tasks-"))
+    mkdirSync(join(root, "bad"))
+    writeFileSync(join(root, "bad", "task.json"), JSON.stringify({ prompt: "x", check: [{ name: "a" }] }))
+    expect(() => loadTasks(root)).toThrow("task bad: missing check")
   })
 
   test("filters by id", () => {
@@ -74,4 +96,16 @@ describe("prepareWorkspace", () => {
     expect(readFileSync(join(dir, ".git/info/exclude"), "utf8")).toContain("opencode.json")
     expect(git(dir, "status", "--porcelain").stdout).toBe("")
   })
+})
+
+describe("evals/tasks", () => {
+  // A check that passes on the untouched repo can't tell a finished run from an idle one.
+  for (const task of loadTasks(join(repoRoot, "evals/tasks"))) {
+    test(`${task.id}: check fails on the untouched repo`, async () => {
+      const dir = await prepareWorkspace(task, {})
+      const empty = join(mkdtempSync(join(tmpdir(), "tony-final-")), "final.txt")
+      writeFileSync(empty, "")
+      expect(runChecks(task, dir, empty).passed).toBe(false)
+    })
+  }
 })

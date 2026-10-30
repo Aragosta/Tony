@@ -4,7 +4,7 @@ import { mkdirSync, writeFileSync } from "node:fs"
 import { join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { parseArgs } from "node:util"
-import { PREFLIGHT_FAILED, runPreflight, summarize, toMarkdown } from "./report.ts"
+import { PREFLIGHT_FAILED, PREFLIGHT_TASK, runPreflight, summarize, toMarkdown } from "./report.ts"
 import { runTask, type RunOptions, type RunResult } from "./run.ts"
 import { loadTasks } from "./tasks.ts"
 import type { Variant } from "./workspace.ts"
@@ -38,7 +38,8 @@ const tonyHome = resolve(process.env.TONY_HOME ?? fileURLToPath(new URL("../../.
 const tasksRoot = resolve(process.env.TONY_EVAL_TASKS ?? join(tonyHome, "evals/tasks"))
 const allTasks = loadTasks(tasksRoot)
 const only = values.tasks?.split(",").map((s) => s.trim())
-const tasks = only ? allTasks.filter((t) => only.includes(t.id)) : allTasks
+// The preflight task already ran once; it joins the suite only when named.
+const tasks = only ? allTasks.filter((t) => only.includes(t.id)) : allTasks.filter((t) => t.id !== PREFLIGHT_TASK)
 const base: Omit<RunOptions, "variant"> = {
   model: values.model,
   tonyHome,
