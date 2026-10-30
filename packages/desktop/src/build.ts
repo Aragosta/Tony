@@ -25,8 +25,10 @@ mkdirSync(work, { recursive: true })
 if (!args.source) {
   step(`Fetching opencode v${version}`)
   rmSync(source, { recursive: true, force: true })
-  await $`git clone --quiet --depth 1 --branch v${version} --filter=blob:none --sparse https://github.com/anomalyco/opencode ${source}`
-  await $`git -C ${source} sparse-checkout set --no-cone /* /packages/`
+  await $`git -c advice.detachedHead=false clone --quiet --depth 1 --branch v${version} --filter=blob:none --sparse https://github.com/anomalyco/opencode ${source}`
+  // Interpolated, so Bun's shell passes the patterns to git instead of expanding them as file globs.
+  const patterns = ["/*", "/packages/"]
+  await $`git -C ${source} sparse-checkout set --no-cone ${patterns}`
 }
 
 step("Limiting the install to the packages the desktop app needs")
