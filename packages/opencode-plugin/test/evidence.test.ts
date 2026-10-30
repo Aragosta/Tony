@@ -58,6 +58,20 @@ test("same call succeeding clears failure", async () => {
   expect((await t.evidence("s", dir)).lastFailure).toBeUndefined()
 })
 
+test("a later passing check clears a different check's failure", async () => {
+  const { t, dir } = setup()
+  t.after(done("shell", { command: "npx tsx test/money.test.ts" }, { metadata: { exit: 1 } }), dir)
+  t.after(done("shell", { command: "npm run test" }, { metadata: { exit: 0 } }), dir)
+  expect((await t.evidence("s", dir)).lastFailure).toBeUndefined()
+})
+
+test("a passing check does not clear a failed tool call", async () => {
+  const { t, dir } = setup()
+  t.after(failed("edit", { path: "a.ts" }, "oldString not found"), dir)
+  t.after(done("shell", { command: "bun test" }, { metadata: { exit: 0 } }), dir)
+  expect((await t.evidence("s", dir)).lastFailure?.tool).toBe("edit")
+})
+
 test("open todos", async () => {
   const { t, dir } = setup()
   t.after(done("todowrite", { todos: [{ content: "a", status: "completed" }, { content: "b", status: "pending" }] }), dir)

@@ -142,7 +142,11 @@ export class EvidenceTracker {
     if (LOOKUPS.has(e.tool) || e.tool === "todowrite") return
     t.passed.clear()
     const pass = cleanPass(e, directory)
-    if (pass) t.passed.add(pass)
+    if (pass) {
+      t.passed.add(pass)
+      // A check that passes now outdates an earlier failing one (a wrong runner, say). The gate runs the project's checks itself.
+      if (t.lastFailure?.tool === "shell") t.lastFailure = undefined
+    }
   }
 
   /** A call another hook refused. opencode fires no after-hook for it, so the refusing hook reports it here. */
