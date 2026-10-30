@@ -1,0 +1,15 @@
+{
+  "prompt": "Change request() in src/http/client.ts to take one options object, request({ method, url, body, headers }), instead of positional arguments, and update every caller. A call in the old positional form must throw a TypeError. Every API helper must keep sending exactly the same request as before. test/client.test.ts describes the new form.",
+  "check": [
+    { "name": "tests unchanged", "run": "git diff --quiet HEAD -- test" },
+    { "name": "visible tests pass", "run": "bun test" },
+    { "name": "every helper sends the same request", "run": "cp \"$EVAL_TASK_DIR/hidden/sdk.hidden.test.ts\" test/zz-hidden.test.ts && bun test test/zz-hidden.test.ts" }
+  ],
+  "timeoutSec": 900,
+  "diag": {
+    "skill": "A wide, mechanical refactor: find all 13 call sites in 6 files (one multi-line, one with a variable method, one forwarded through ...args), edit each consistently, verify.",
+    "trap": "Missing the withRetry forwarding (it compiles at runtime and only fails when called), swapping body and headers on calls with `undefined` body, or reading files one at a time and running out of steps.",
+    "keyFiles": ["src/http/client.ts", "src/util/retry.ts", "src/api/admin.ts", "src/api/orders.ts", "src/api/invoices.ts", "src/api/search.ts", "src/api/users.ts"],
+    "protect": ["test/"]
+  }
+}

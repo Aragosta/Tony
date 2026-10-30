@@ -19,12 +19,22 @@ export interface ScriptedRun {
   finalText: string
   /** The loop guard paused the session. */
   stopped: boolean
+  /** opencode's raw `--format json` output, one event per line. */
+  events: string[]
 }
 
 const lines = (file: string) => (existsSync(file) ? readFileSync(file, "utf8").split("\n").filter(Boolean) : [])
 
 /** Runs real `opencode run` in a fresh git repo against a scripted model. */
-export async function runScripted(opts: { script: Step[]; repo: Record<string, string>; tony: boolean; options?: object; setup?: (workspace: string) => void }): Promise<ScriptedRun> {
+export async function runScripted(opts: {
+  script: Step[]
+  repo: Record<string, string>
+  tony: boolean
+  options?: object
+  setup?: (workspace: string) => void
+  /** Extra `opencode run` flags, such as `--thinking`. */
+  flags?: string[]
+}): Promise<ScriptedRun> {
   const scratch = mkdtempSync(join(tmpdir(), "tony-int-"))
   const workspace = join(scratch, "repo")
   for (const [path, content] of Object.entries(opts.repo)) {
@@ -58,7 +68,7 @@ export async function runScripted(opts: { script: Step[]; repo: Record<string, s
 
   let stdout = ""
   const exitCode = await new Promise<number | null>((resolve) => {
-    const child = spawn(opencodeBinary(), ["run", "--standalone", "--auto", "--format", "json", "--model", "llamacpp/local", "go"], {
+    const child = spawn(opencodeBinary(), ["run", "--standalone", "--auto", "--format", "json", ...(opts.flags ?? []), "--model", "llamacpp/local", "go"], {
       cwd: workspace,
       env: { ...env, PWD: workspace, XDG_CONFIG_HOME: configHome, TONY_STATUS_FILE: statusFile },
       stdio: ["ignore", "pipe", "ignore"],
@@ -77,6 +87,7 @@ export async function runScripted(opts: { script: Step[]; repo: Record<string, s
     child.on("error", () => resolve(null))
   })
   mock.stop()
-  const events = parseEvents(stdout.split("\n"))
-  return { workspace, log: lines(logFile), status: lines(statusFile).map((l) => JSON.parse(l)), exitCode, finalText: events.finalText, stopped: events.stopped }
+  const raw = stdout.split("\n").filter(Boolean)
+  const events = parseEvents(raw)
+  return { workspace, log: lines(logFile), status: lines(statusFile).map((l) => JSON.parse(l)), exitCode, finalText: events.finalText, stopped: events.stopped, events: raw }
 }

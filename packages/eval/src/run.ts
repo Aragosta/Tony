@@ -24,6 +24,8 @@ export interface RunOptions {
   langfuse: boolean
   opencodeBin: string
   keep: boolean
+  /** Diagnostic runs: ask opencode for the model's thinking and keep the raw events and the workspace diff. */
+  capture?: boolean
 }
 
 export interface RunResult {
@@ -42,6 +44,23 @@ export interface RunResult {
   stderrTail: string
   gate?: GateRecord
   workspace?: string
+  /** With `capture`: opencode's raw `--format json` events, one per line. */
+  events?: string[]
+  /** With `capture`: files that differ from the starting commit at the end, including new ones. */
+  changedFiles?: string[]
+  /** With `capture`: `git diff` against the starting commit, new files included. */
+  diff?: string
+}
+
+const DIFF_CHARS = 200_000
+
+/** What the run changed, against the commit the setup left (HEAD), counting untracked files. */
+function workspaceChanges(workspace: string): { changedFiles: string[]; diff: string } {
+  const git = (...args: string[]) => spawnSync("git", args, { cwd: workspace, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 }).stdout ?? ""
+  // Intent-to-add makes new files show up in `git diff`, without staging their content.
+  git("add", "-N", ".")
+  const changedFiles = git("diff", "--name-only", "HEAD").split("\n").filter(Boolean)
+  return { changedFiles, diff: git("diff", "HEAD").slice(0, DIFF_CHARS) }
 }
 
 const CHECK_OUTPUT_CHARS = 4000
@@ -135,7 +154,7 @@ export async function runTask(task: EvalTask, opts: RunOptions): Promise<RunResu
   const statusFile = join(scratch, "status.jsonl")
   const start = Date.now()
   // --standalone: a private server per run, so runs don't share state through the background service.
-  const args = ["run", "--standalone", "--auto", "--format", "json", "--model", opts.model, task.prompt]
+  const args = ["run", "--standalone", "--auto", "--format", "json", ...(opts.capture ? ["--thinking"] : []), "--model", opts.model, task.prompt]
   const run = await runOpencode(
     opts.opencodeBin,
     args,
@@ -149,6 +168,8 @@ export async function runTask(task: EvalTask, opts: RunOptions): Promise<RunResu
   const finalTextFile = join(scratch, "final.txt")
   await writeFile(finalTextFile, metrics.finalText)
 
+  // Before the checks: a grader may copy hidden tests into the workspace.
+  const changes = opts.capture ? workspaceChanges(workspace) : undefined
   let passed = false
   let failedCheck: string | undefined
   let checkOutput = run.timedOut ? `timed out after ${task.timeoutSec}s` : ""
@@ -178,5 +199,6 @@ export async function runTask(task: EvalTask, opts: RunOptions): Promise<RunResu
     stderrTail: run.stderr,
     ...(gate ? { gate } : {}),
     ...(keep ? { workspace } : {}),
+    ...(opts.capture ? { events: run.stdout.split("\n").filter(Boolean), ...changes } : {}),
   }
 }

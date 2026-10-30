@@ -1,0 +1,15 @@
+{
+  "prompt": "Customers report stale prices: after an admin changes a price, the shop sometimes keeps showing the old one. test/prices.test.ts reproduces support ticket #4412. Find the cause and fix it everywhere it occurs, without turning off caching.",
+  "check": [
+    { "name": "tests unchanged", "run": "git diff --quiet HEAD -- test" },
+    { "name": "visible tests pass", "run": "bun test" },
+    { "name": "hidden cases pass", "run": "cp \"$EVAL_TASK_DIR/hidden/prices.hidden.test.ts\" test/zz-hidden.test.ts && bun test test/zz-hidden.test.ts" }
+  ],
+  "timeoutSec": 900,
+  "diag": {
+    "skill": "Debugging from a symptom to the root cause, then fixing every occurrence (two cache-invalidation sites, plus an off-by-one expiry).",
+    "trap": "Fixing only updatePrice (the visible test), missing the bulk import path and the `<` vs `<=` expiry; or disabling the cache to make the symptom go away.",
+    "keyFiles": ["src/prices.ts", "src/cache.ts"],
+    "protect": ["test/"]
+  }
+}

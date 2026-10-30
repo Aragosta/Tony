@@ -2,3 +2,4 @@ node_modules/
 .superpowers/
 evals/results/
 packages/desktop/.build/
+evals/diag-results/

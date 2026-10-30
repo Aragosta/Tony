@@ -1,0 +1,1 @@
+{"name": "crawler", "private": true, "type": "module", "scripts": {"test": "bun test"}}

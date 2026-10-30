@@ -55,13 +55,13 @@ Sources:
 5. **Stop on evidence, with a bound.** Stop hooks and `/goal` in Claude Code, `task_complete` with at most 5 nudges in Copilot. Tony's gate: checks after the last change, at most 3 rounds.
 
 ## What worked for Tony, and what didn't
-| Rule | Evidence | Verdict |
+| Rule | Evidence (scripted = the fake model in `packages/eval/test/integration`, which proves a mechanism works, not that it helps a real model) | Verdict |
 |---|---|---|
-| **Loop guard** (block the 3rd identical call, pause at the 5th) | Scripted: 95 identical calls became 5 | **Keep** |
-| **Gate: checks fail → send the output back** | Scripted A/B: hidden-break and tamper went from false done to pass (1/5 → 4/5 overall). Real model: 0.1 rounds per run, so rarely needed | **Keep, this rule only** |
+| **Loop guard** (block the 3rd identical call, pause at the 5th) | Scripted only: 95 identical calls became 5 | **Keep** |
+| **Gate: checks fail → send the output back** | Scripted A/B only: hidden-break went from false done to pass. Real model: 0.1 rounds per run, so rarely needed | **Keep, this rule only** |
 | **Name the project's check command** in the prompt | Run 1: the model guessed `npx tsx` on a bun project | **Keep** |
 | **`Blocked:` exit** (say what's missing instead of faking it) | Run 1: the model faked success on report-failure | **Keep** (one prompt line, plus the gate doesn't nudge a blocked answer) |
-| **Local 128k context cap** | Fixes silent truncation by the server (mechanism; no eval task reaches it) | **Keep** |
+| **Local 128k context cap** | Mechanism only: fixes silent truncation by the server; no eval task reaches it | **Keep** |
 | Replace opencode's prompt | Lost opencode's per-model prompts and its `<system-reminder>` line; +34% steps (5.3 → 7.1) | **Remove**: add to the base prompt instead |
 | Edit guard | Costs refusal + read + retry; caused the false `verified` bug | **Remove** (maybe return later as changed-since-read only, measured) |
 | Diagnostics after edits | Never ran in the eval (no tsc in the fixtures); runs whole-project `tsc` twice per edit | **Remove** |

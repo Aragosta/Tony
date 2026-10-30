@@ -1,5 +1,6 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs"
 import { join, resolve } from "node:path"
+import type { DiagHints } from "./diagnose.ts"
 
 /** One named step of a task's check; steps run in order and the first failure fails the run. */
 export interface CheckStep {
@@ -15,6 +16,8 @@ export interface EvalTask {
   timeoutSec: number
   /** Absolute path of the task folder; the fixture repo is `<dir>/repo`. */
   dir: string
+  /** Hints for diagnostic runs (`diag` in task.json). */
+  diag?: DiagHints
 }
 
 /** Loads every `<root>/<id>/task.json`, sorted by id. */
@@ -35,6 +38,7 @@ export function loadTasks(root: string, only?: readonly string[]): EvalTask[] {
         ...(typeof raw.setup === "string" ? { setup: raw.setup } : {}),
         timeoutSec: typeof raw.timeoutSec === "number" ? raw.timeoutSec : 600,
         dir,
+        ...(typeof raw.diag === "object" && raw.diag !== null ? { diag: raw.diag as DiagHints } : {}),
       }
     })
 }

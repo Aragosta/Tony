@@ -8,6 +8,7 @@
   - The judge, and the gate's tamper, fallback, removed-`throw`, failed-last-command, open-todo and announced-step reasons: each was written from one trace, without a measured effect.
   - Check reuse, and the `todo` tool in the default config.
   - Old `tony.json` keys for these are ignored.
+- **Eval: diagnostic runs.** `bun packages/eval/src/diag.ts` records each run's whole path from prompt to answer (thinking, text, every tool call and result) and writes a page per run plus a failure-mode summary. Five hard tasks in `evals/diag/`, each with hidden grader cases and a reference solution.
 - **Tony is an app now.** Tony ships as opencode's desktop app with Tony's brain built in, instead of a plugin you add to opencode. The npm package `@aragosta/tony`, `bun run setup` and the per-OS plugin install steps are removed. The brain and all its features are unchanged.
 - Tony's options now go in `tony.json` next to your opencode config. If you added the 1.0.0 plugin to your opencode config, remove that entry.
 - Tony runs its own background engine, with its own sessions. opencode's phone pairing is off in Tony for now.

@@ -1,0 +1,15 @@
+{
+  "prompt": "Implement evaluate in src/calc.ts so it follows every rule in README.md, including the exact error messages and positions.",
+  "check": [
+    { "name": "tests unchanged", "run": "git diff --quiet HEAD -- test" },
+    { "name": "visible tests pass", "run": "bun test" },
+    { "name": "hidden rule cases pass", "run": "cp \"$EVAL_TASK_DIR/hidden/calc.hidden.test.ts\" test/zz-hidden.test.ts && bun test test/zz-hidden.test.ts" }
+  ],
+  "timeoutSec": 1200,
+  "diag": {
+    "skill": "Planning and writing a parser from an 11-rule spec, then checking it against rules the visible tests don't cover.",
+    "trap": "Using eval or Function, getting `-2^2` or right-associativity wrong, half-away-from-zero rounding via Math.round, or error positions that are off by one; stopping once the 4 visible tests pass.",
+    "keyFiles": ["src/calc.ts"],
+    "protect": ["test/"]
+  }
+}

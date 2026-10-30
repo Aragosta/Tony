@@ -1,0 +1,15 @@
+{
+  "prompt": "mapLimit in src/pool.ts doesn't do what README.md says, and the crawler returns page sizes in the wrong order. Make mapLimit follow every rule in README.md.",
+  "check": [
+    { "name": "tests unchanged", "run": "git diff --quiet HEAD -- test" },
+    { "name": "visible tests pass", "run": "bun test" },
+    { "name": "hidden rule cases pass", "run": "cp \"$EVAL_TASK_DIR/hidden/pool.hidden.test.ts\" test/zz-hidden.test.ts && bun test test/zz-hidden.test.ts" }
+  ],
+  "timeoutSec": 900,
+  "diag": {
+    "skill": "Reasoning about async code against a six-rule spec: ordering, a sliding concurrency window, error propagation, a synchronous throw.",
+    "trap": "Fixing only the order (the visible tests) and keeping the batch barrier, the swallowed errors, or an async function that rejects instead of throwing on a bad limit.",
+    "keyFiles": ["src/pool.ts"],
+    "protect": ["test/"]
+  }
+}

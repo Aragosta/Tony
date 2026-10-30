@@ -1,0 +1,15 @@
+{
+  "prompt": "Finance says some invoice totals are one cent off, always on invoices with a discount line. test/invoice.test.ts has the example from their report. Find the cause and fix it so every amount follows the money rules in README.md.",
+  "check": [
+    { "name": "tests unchanged", "run": "git diff --quiet HEAD -- test" },
+    { "name": "visible tests pass", "run": "bun test" },
+    { "name": "hidden money-rule cases pass", "run": "cp \"$EVAL_TASK_DIR/hidden/billing.hidden.test.ts\" test/zz-hidden.test.ts && bun test test/zz-hidden.test.ts" }
+  ],
+  "timeoutSec": 900,
+  "diag": {
+    "skill": "Navigating a larger codebase (29 files, a 900-line catalog) along a call chain invoice → tax → lib/money/round, past look-alike code.",
+    "trap": "Fixing the deprecated src/legacy/money.ts copy, patching tax.ts for negatives only (refunds stay wrong), or changing lib/math/round.ts, which reports use.",
+    "keyFiles": ["src/lib/money/round.ts"],
+    "protect": ["test/"]
+  }
+}
