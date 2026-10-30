@@ -23,7 +23,11 @@ jobs:
       version: ${{ steps.check.outputs.version }}
       branch: ${{ steps.check.outputs.branch }}
     steps:
+      # With a TONY_BOT_TOKEN secret (a token that may push and open PRs), the PR also runs the normal PR checks;
+      # GITHUB_TOKEN's pushes and PRs start no workflows.
       - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.TONY_BOT_TOKEN || github.token }}
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.4.4
@@ -31,12 +35,16 @@ jobs:
         name: Is there a new opencode?
         env:
           REQUESTED: ${{ inputs.version }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           latest="${REQUESTED:-$(npm view @opencode/cli version)}"
           current="$(cat packages/desktop/opencode-version)"
           branch="opencode/update-$latest"
           if [ "$latest" = "$current" ]; then echo "Tony is on opencode $current already."; exit 0; fi
-          if git ls-remote --exit-code --heads origin "$branch" > /dev/null; then echo "$branch exists already."; exit 0; fi
+          # An open PR is the pending update; a leftover branch from a failed run is redone.
+          if [ -n "$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$branch" --state open --json number --jq '.[].number')" ]; then
+            echo "The PR for opencode $latest is open already."; exit 0
+          fi
           echo "version=$latest" >> "$GITHUB_OUTPUT"
           echo "branch=$branch" >> "$GITHUB_OUTPUT"
       - name: Move Tony to the new opencode
@@ -51,7 +59,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -b "$BRANCH"
           git commit -am "chore: move to opencode $VERSION"
-          git push origin "$BRANCH"
+          git push --force origin "$BRANCH"
 
   ci:
     needs: bump
@@ -62,16 +70,20 @@ jobs:
 
   pr:
     needs: [bump, ci]
-    if: always() && needs.bump.outputs.version
+    if: always() && needs.bump.result == 'success' && needs.bump.outputs.version
     runs-on: ubuntu-latest
     steps:
       - name: Open the PR with the CI result
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.TONY_BOT_TOKEN || github.token }}
           VERSION: ${{ needs.bump.outputs.version }}
           BRANCH: ${{ needs.bump.outputs.branch }}
           RESULT: ${{ needs.ci.result }}
           RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           if [ "$RESULT" = "success" ]; then status="✅ CI passed: safe to merge."; else status="❌ CI $RESULT: see the failing step in $RUN (packages/desktop/README.md, Updating opencode)."; fi
-          gh pr create --repo "$GITHUB_REPOSITORY" --head "$BRANCH" --title "Move to opencode $VERSION" --body "$(printf 'Moves Tony to opencode %s: the app pin, the plugin pin and the CI engine.\n\n%s\n\nCI for this branch (app builds on macOS, Windows and Linux, Tony'"'"'s features against the new engine, app launch): %s\n' "$VERSION" "$status" "$RUN")"
+          body="$(printf 'Moves Tony to opencode %s: the app pin and the plugin pin.\n\n%s\n\nCI for this branch (app builds on macOS, Windows and Linux, Tony'"'"'s features against the new engine, app launch): %s\n' "$VERSION" "$status" "$RUN")"
+          gh pr create --repo "$GITHUB_REPOSITORY" --head "$BRANCH" --title "Move to opencode $VERSION" --body "$body" || {
+            echo "::error::Could not open the PR. Allow it under Settings > Actions > General > 'Allow GitHub Actions to create and approve pull requests', or add a TONY_BOT_TOKEN secret. The branch $BRANCH is pushed: $status"
+            exit 1
+          }

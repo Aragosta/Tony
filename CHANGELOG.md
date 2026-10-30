@@ -2,6 +2,8 @@
 
 ## Unreleased
 - **Tony is an app now.** Tony ships as opencode's desktop app with Tony's brain built in, instead of a plugin you add to opencode. The npm package `@aragosta/tony`, `bun run setup` and the per-OS plugin install steps are removed. The brain and all its features are unchanged.
+- Tony's options now go in `tony.json` next to your opencode config. If you added the 1.0.0 plugin to your opencode config, remove that entry.
+- Tony runs its own background engine, with its own sessions. opencode's phone pairing is off in Tony for now.
 
 ## 1.0.0 (2026-10-29)
 First release, for opencode 2.2.1, on Windows, macOS and Linux. Install: add `"plugins": [{ "package": "@aragosta/tony@1.0.0" }]` to your opencode config.

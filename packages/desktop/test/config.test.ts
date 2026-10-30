@@ -18,3 +18,10 @@ test("the shipped config loads Tony from the app's resources and keeps the recom
 test("a config without the Tony placeholder is refused, so the app never starts without its brain", () => {
   expect(() => withPlugin({ plugins: [] }, "/x")).toThrow("Tony")
 })
+
+test("the user's Tony options (tony.json) are merged into the bundled defaults, one level deep", () => {
+  const config = { plugins: [{ package: TONY_PLUGIN, options: { gate: { maxRounds: 3 }, prompt: { enabled: true } } }] }
+  const merged = withPlugin(config, "/x", { gate: { judge: true }, loopGuard: { blockAt: 4 } })
+  expect(merged.plugins[0]!.options as Record<string, unknown>).toEqual({ gate: { maxRounds: 3, judge: true }, prompt: { enabled: true }, loopGuard: { blockAt: 4 } })
+  expect(withPlugin(config, "/x").plugins[0]!.options).toEqual(config.plugins[0]!.options)
+})

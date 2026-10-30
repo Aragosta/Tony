@@ -4,6 +4,8 @@ on:
   push:
     branches: [main, "claude/**"]
   pull_request:
+  # Builds the apps on demand (Actions tab, "Run workflow").
+  workflow_dispatch:
   # The opencode-update workflow runs the full suite on its bump branch.
   workflow_call:
     inputs:
@@ -30,8 +32,8 @@ jobs:
           node-version: 22
       - run: bun install --frozen-lockfile
       - run: bun run typecheck
-      - name: Plugin unit tests and version pins
-        run: bun test packages/opencode-plugin packages/eval/test/pins.test.ts
+      - name: Plugin, app build and version-pin unit tests
+        run: bun test packages/opencode-plugin packages/desktop packages/eval/test/pins.test.ts
       # The eval drives opencode through bash scripts; on Windows that is Git Bash.
       - name: Eval unit tests
         if: runner.os != 'Windows'
@@ -48,7 +50,10 @@ jobs:
 
 
   # The Tony app: opencode's desktop app at the pinned version + Tony's patches and brain (packages/desktop).
+  # macOS and Windows minutes are expensive, so this runs on main, by hand, and for opencode updates (workflow_call),
+  # not on every branch push.
   app:
+    if: inputs.ref != '' || github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
     strategy:
       fail-fast: false
       matrix:
@@ -88,3 +93,5 @@ jobs:
           name: tony-${{ runner.os }}-${{ runner.arch }}
           path: packages/desktop/.build/tony-*.tar
           if-no-files-found: error
+          # .build is a hidden folder, which upload-artifact skips by default.
+          include-hidden-files: true

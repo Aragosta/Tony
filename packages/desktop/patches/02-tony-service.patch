@@ -1,5 +1,5 @@
 diff --git a/packages/desktop/src/main/service/background-service.ts b/packages/desktop/src/main/service/background-service.ts
-index f6002ba..597f2dc 100644
+index f6002ba..f678fd7 100644
 --- a/packages/desktop/src/main/service/background-service.ts
 +++ b/packages/desktop/src/main/service/background-service.ts
 @@ -7,6 +7,7 @@ import { keptStages, serviceVersion, shouldRetryEnsure } from "./cli-version"
@@ -10,7 +10,7 @@ index f6002ba..597f2dc 100644
  
  export * as BackgroundService from "./background-service"
  
-@@ -53,19 +54,20 @@ const connect = Effect.fn("BackgroundService.connect")(function* (mode: "initial
+@@ -53,21 +54,23 @@ const connect = Effect.fn("BackgroundService.connect")(function* (mode: "initial
            "opencode",
            "service-local.json",
          )
@@ -32,7 +32,19 @@ index f6002ba..597f2dc 100644
 +        ...(isolated ? ["--hostname", "0.0.0.0", "--port", String(0x0c0c)] : Tony.args),
        ],
        onStart: (reason, previousVersion) =>
++        Tony.started() ??
          runFork(Effect.logInfo("v2 CLI background service starting", { reason, previousVersion })),
+     })
+ 
+@@ -83,7 +86,7 @@ const connect = Effect.fn("BackgroundService.connect")(function* (mode: "initial
+   const early = mode === "initial" && !isolated ? yield* Effect.promise(sidecarProbe) : undefined
+ 
+   if (early) yield* Effect.sync(() => void runEnsure().catch(() => undefined))
+-  const service = early ?? (yield* Effect.tryPromise(runEnsure))
++  const service = yield* Effect.tryPromise(() => Tony.current(early, runEnsure, () => client.Service.stop({ file })))
+ 
+   if (service.auth?.type !== "basic") throw new Error("V2 CLI background service did not provide authentication")
+   const url = new URL(service.url)
 diff --git a/packages/desktop/src/main/service/sidecar-probe.ts b/packages/desktop/src/main/service/sidecar-probe.ts
 index 36914f4..75f78fe 100644
 --- a/packages/desktop/src/main/service/sidecar-probe.ts

@@ -22,7 +22,8 @@ New files never conflict with an opencode update, so most of Tony lives in `over
   - Own database (`tony.db`).
   - Tony's config in `OPENCODE_CONFIG_CONTENT`. The user's own opencode config still loads, and plugin lists are combined.
   - Only the engine process gets these variables.
-- `overlay/packages/desktop/src/main/tony/config.ts`: fills the bundled plugin path into Tony's config. It refuses a config without Tony.
+- `overlay/packages/desktop/src/main/tony/config.ts`: fills the bundled plugin path and the user's `tony.json` options into Tony's config. It refuses a config without Tony.
+- `overlay/packages/desktop/src/main/tony/engine.ts`: the engine outlives the app. If the running engine was started with other settings, Tony stops it and starts a fresh one. Other settings means an older Tony, a moved app or changed options. Tony records a fingerprint of the settings with the engine's pid.
 - `overlay/packages/desktop/tony.builder.ts`: opencode's electron-builder config with Tony's name and app ID (`ai.aragosta.tony`), Tony's resources, no update feed, and no macOS signing identity.
 
 Edits to opencode's own files are kept to three small patches:
@@ -30,10 +31,14 @@ Edits to opencode's own files are kept to three small patches:
 | Patch | File(s) | Why |
 |---|---|---|
 | `01-identity.patch` | `desktop/src/main/constants.ts` | Name "Tony" and app ID `ai.aragosta.tony`, so Tony has its own data folder and installs next to OpenCode |
-| `02-tony-service.patch` | `desktop/src/main/service/background-service.ts`, `sidecar-probe.ts` | Start, find and adopt only Tony's own engine (hooks into `tony/service.ts`) |
-| `03-updater-off.patch` | `gui-plugins/src/updater/main.ts` | opencode's update feed would replace Tony with OpenCode |
+| `02-tony-service.patch` | `desktop/src/main/service/background-service.ts`, `sidecar-probe.ts` | Start, find and adopt only Tony's own engine, restarting one with other settings (hooks into `tony/service.ts`) |
+| `03-builtins-off.patch` | `gui-plugins/src/updater/main.ts`, `gui-plugins/src/main.ts`, `gui-plugins/src/renderer.ts` | Updater off: opencode's update feed would replace Tony with OpenCode. Phone pairing off: it changes service settings (`~/.config/opencode/service.json`) that a plain opencode on the same computer shares, and would start a plain service without Tony |
 
 Everything else (screens, context meter, MCP status, terminal) is opencode's, unchanged.
+
+**Known limits.**
+- Tony's engine still reads opencode's own service settings file (`~/.config/opencode/service.json`). It shares its password, and any remote-access setting made there for a plain opencode.
+- The app still registers the `opencode://` link scheme, and the macOS "Install CLI" menu item installs the bundled engine as `opencode`.
 
 ## Updating opencode
 1. Put the new version in `opencode-version`.
@@ -47,4 +52,9 @@ If a patch no longer applies, the build stops and names it. To refresh it:
 
 ## Checks
 - `TONY_OPENCODE_BIN=<engine from .build/app.json> TONY_INTEGRATION=1 bun test packages/eval/test/integration` runs Tony's 12 feature tests against the engine inside the built app.
-- `TONY_APP=1 bun test packages/desktop/test/app.test.ts` launches the built app (on Linux under `xvfb-run -a`) and checks that its own engine runs with Tony's brain active.
+- `TONY_APP=1 bun test packages/desktop/test/app.test.ts` launches the built app (on Linux under `xvfb-run -a`). It checks three things:
+  - its own engine runs with Tony's brain active;
+  - a restart keeps that engine;
+  - changed options restart it.
+
+CI runs these in the `app` job on `main`, by hand, and for opencode updates. macOS and Windows minutes are expensive, so they don't run on every push.

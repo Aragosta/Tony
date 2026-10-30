@@ -19,7 +19,7 @@ What Tony adds to plain opencode:
 - **Local context sync.** Local models are capped at a 128k window, so compaction starts before the server truncates the prompt.
 
 ## Get Tony
-There are no published downloads yet. CI builds the app for macOS and Windows on every push (workflow artifacts). To build it yourself (needs [Bun](https://bun.sh) 1.4.4, Node.js 18+ and git):
+There are no published downloads yet. CI builds the app for macOS, Windows and Linux on `main` and when started by hand (Actions → CI → Run workflow); the apps are that run's artifacts. To build it yourself (needs [Bun](https://bun.sh) 1.4.4, Node.js 18+ and git):
 ```bash
 git clone https://github.com/Aragosta/Tony && cd Tony && bun install && bun run --cwd packages/desktop build
 ```
@@ -27,15 +27,16 @@ The app lands in `packages/desktop/.build/opencode/packages/desktop/dist/`. The 
 - **macOS:** open it once, then **System Settings → Privacy & Security → Open Anyway**. Or run `xattr -dr com.apple.quarantine /Applications/Tony.app` once.
 - **Windows:** **More info**, then **Run anyway**.
 
-Tony uses your opencode config (`~/.config/opencode/opencode.json`; on Windows `C:\Users\<you>\.config\opencode\opencode.json`) for models, providers and MCP servers. It keeps its own sessions. To check Tony is active, ask "What's your name?" It answers "Tony". When the completion gate sends the agent back, you see a `Tony: …` row in the session.
+Tony uses your opencode config (`~/.config/opencode/opencode.json`; on Windows `C:\Users\<you>\.config\opencode\opencode.json`) for models, providers and MCP servers. Tony's own defaults (todo list, background compaction, step caps, read-only `explore`) win over the same keys in your config or a project's. Tony keeps its own sessions and its own background engine, separate from a plain opencode on the same computer. opencode's phone pairing (remote access) is off in Tony for now. To check Tony is active, ask "What's your name?" It answers "Tony". When the completion gate sends the agent back, you see a `Tony: …` row in the session.
 
-The npm package and `bun run setup` from 1.0.0 are gone; Tony is no longer installed into an existing opencode. How the app is put together: [packages/desktop/README.md](packages/desktop/README.md).
+The npm package and `bun run setup` from 1.0.0 are gone; Tony is no longer installed into an existing opencode. If you added the 1.0.0 plugin to your opencode config, remove that entry (`@aragosta/tony` or a path ending in `packages/opencode-plugin`). Otherwise two copies of Tony load and opencode keeps only one, possibly the old one. How the app is put together: [packages/desktop/README.md](packages/desktop/README.md).
 
 ## Options
-Tony's options live next to its plugin entry in the config the app loads (`config/opencode.json`):
+Put Tony's options in `tony.json` next to your opencode config (`~/.config/opencode/tony.json`; on Windows `C:\Users\<you>\.config\opencode\tony.json`). Then restart Tony; it restarts its engine with the new options.
 ```json
-{ "package": "{TONY_PLUGIN}", "options": { "gate": { "checks": ["npm test"] }, "loopGuard": { "blockAt": 4, "stopAt": 6 } } }
+{ "gate": { "checks": ["npm test"], "judge": true }, "loopGuard": { "blockAt": 4, "stopAt": 6 } }
 ```
+Per feature, your keys win over Tony's defaults (`config/opencode.json`).
 
 | Option | Default | Meaning |
 |---|---|---|

@@ -12,16 +12,17 @@ Tony app      opencode's desktop app at one pinned version + Tony's patches and 
 
 **Engine.** The opencode CLI from npm at the pinned version, unchanged. It's bundled in the app, and the integration tests and the eval run this same version.
 
-The app starts **its own** engine, so Tony never runs without its brain and never shares state with a plain opencode:
+The app starts **its own** engine, so Tony never runs without its brain and never shares sessions or a running service with a plain opencode:
 
 | What | Tony's engine | Why |
 |---|---|---|
 | Registration and state folder | the app's own data folder | the app never adopts a plain opencode service (no brain), and opencode never adopts Tony's |
 | Port | `0x70E1` | opencode's own service uses `0xC0DE` (`0x70DE` on Windows) |
 | Database | `tony.db` | two services never share one session database |
-| Config | `OPENCODE_CONFIG_CONTENT` = `config/opencode.json` with the bundled brain's path filled in | the brain and Tony's defaults are always on |
+| Config | `OPENCODE_CONFIG_CONTENT` = `config/opencode.json` with the bundled brain's path and the user's `tony.json` options filled in | the brain and Tony's defaults are always on |
+| Freshness | a fingerprint of these settings, recorded with the engine's pid | the engine outlives the app; one running with other settings (older Tony, moved app, new options) is restarted |
 
-The user's own opencode config (models, providers, MCP servers) still loads, and plugin lists are combined.
+The user's own opencode config (models, providers, MCP servers) still loads, and plugin lists are combined. Tony's defaults win on the same keys (step caps, `experimental`, `explore` permissions). opencode's phone pairing is off, because it changes service settings shared with a plain opencode.
 
 **App (`packages/desktop`).** opencode's desktop app (screens, context meter, MCP status, terminal), built from opencode's source at the pinned version. opencode's code isn't stored in this repo. `src/build.ts`:
 1. clones the tag;
@@ -39,7 +40,7 @@ Details: `packages/desktop/README.md`.
    - Bumps `packages/desktop/opencode-version` and the brain's `@opencode/plugin` pin (`packages/desktop/src/bump.ts`) on a branch.
    - Runs the full CI there.
    - Opens a PR that says whether it passed.
-2. **CI on that branch:**
+2. **CI on that branch** (the `app` job; on ordinary pushes CI runs only the fast tests):
    - builds the app on macOS, Windows and Linux;
    - runs the brain's 12 feature tests against the engine **inside the built app**;
    - launches the app and checks that its own engine runs with the brain active.
@@ -48,7 +49,7 @@ Details: `packages/desktop/README.md`.
    - A **plugin API change**: fix `src/index.ts`.
    - A **behaviour change**: the failing feature test names it.
 
-Tony's changes to opencode's own files are three patches of about 15 lines. Everything else Tony adds is new files, which never conflict, so most updates need no hand work.
+Tony's changes to opencode's own files are three patches of about 20 lines. Everything else Tony adds is new files, which never conflict, so most updates need no hand work.
 
 ## What every change must keep working
 - `bun test` and `bun run typecheck`.

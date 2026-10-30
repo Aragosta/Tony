@@ -1,0 +1,50 @@
+diff --git a/packages/gui-plugins/src/main.ts b/packages/gui-plugins/src/main.ts
+index 76cfe0c..4f4875f 100644
+--- a/packages/gui-plugins/src/main.ts
++++ b/packages/gui-plugins/src/main.ts
+@@ -25,7 +25,8 @@ export const builtins = compose({
+   review,
+   details,
+   browser: { ...browser, mainEntry: () => import("./browser/main") },
+-  pairing: { ...pairing, mainEntry: () => import("./pairing/main") },
++  // Tony: off. Pairing changes service settings that a plain opencode on this computer shares.
++  pairing,
+   updater: { ...updater, mainEntry: () => import("./updater/main") },
+   ssh: { ...ssh, mainEntry: () => import("./ssh/main") },
+   wsl: { ...wsl, mainEntry: () => import("./wsl/main") },
+diff --git a/packages/gui-plugins/src/renderer.ts b/packages/gui-plugins/src/renderer.ts
+index 5c131e2..02b3531 100644
+--- a/packages/gui-plugins/src/renderer.ts
++++ b/packages/gui-plugins/src/renderer.ts
+@@ -16,7 +16,6 @@ import detailsRenderer from "./details/renderer"
+ import browser from "./browser"
+ import browserRenderer from "./browser/renderer"
+ import pairing from "./pairing"
+-import pairingRenderer from "./pairing/renderer"
+ import updater from "./updater"
+ import updaterRenderer from "./updater/renderer"
+ import ssh from "./ssh"
+@@ -45,7 +44,8 @@ export const builtins = compose({
+   review: { ...review, windowEntry: eager(reviewRenderer) },
+   details: { ...details, windowEntry: eager(detailsRenderer) },
+   browser: { ...browser, windowEntry: eager(browserRenderer) },
+-  pairing: { ...pairing, windowEntry: eager(pairingRenderer) },
++  // Tony: off. Pairing changes service settings that a plain opencode on this computer shares.
++  pairing,
+   updater: { ...updater, windowEntry: eager(updaterRenderer) },
+   ssh: { ...ssh, windowEntry: eager(sshRenderer) },
+   wsl: { ...wsl, windowEntry: eager(wslRenderer) },
+diff --git a/packages/gui-plugins/src/updater/main.ts b/packages/gui-plugins/src/updater/main.ts
+index ec47ce9..32b0fb5 100644
+--- a/packages/gui-plugins/src/updater/main.ts
++++ b/packages/gui-plugins/src/updater/main.ts
+@@ -10,7 +10,8 @@ const setup: Plugin.MainSetup = async (ctx) => {
+   const builtin = builtinMainContext(ctx)
+   const build = ctx.app
+   const lifecycle = builtin.lifecycle
+-  const enabled = build.packaged
++  // Tony: off. opencode's update feed would replace Tony with OpenCode.
++  const enabled = false && build.packaged
+   // Holds no resources, so it needs no cleanup.
+   const context = logContext(ctx.log.write)
+   const runPromise = Effect.runPromiseWith(context)
