@@ -1,0 +1,77 @@
+# Daily: when opencode publishes a new version, move Tony to it on a branch, run the full CI there (app builds on
+# macOS, Windows and Linux, Tony's features against the new engine, the app launch test) and open a PR with the
+# result. Green: merge. Red: the failing step names the patch or test to fix (packages/desktop/README.md).
+name: opencode update
+
+on:
+  schedule:
+    - cron: "23 4 * * *"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "opencode version to move to (default: latest on npm)"
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.check.outputs.version }}
+      branch: ${{ steps.check.outputs.branch }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      - id: check
+        name: Is there a new opencode?
+        env:
+          REQUESTED: ${{ inputs.version }}
+        run: |
+          latest="${REQUESTED:-$(npm view @opencode/cli version)}"
+          current="$(cat packages/desktop/opencode-version)"
+          branch="opencode/update-$latest"
+          if [ "$latest" = "$current" ]; then echo "Tony is on opencode $current already."; exit 0; fi
+          if git ls-remote --exit-code --heads origin "$branch" > /dev/null; then echo "$branch exists already."; exit 0; fi
+          echo "version=$latest" >> "$GITHUB_OUTPUT"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+      - name: Move Tony to the new opencode
+        if: steps.check.outputs.version
+        env:
+          VERSION: ${{ steps.check.outputs.version }}
+          BRANCH: ${{ steps.check.outputs.branch }}
+        run: |
+          bun packages/desktop/src/bump.ts "$VERSION"
+          bun install
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git commit -am "chore: move to opencode $VERSION"
+          git push origin "$BRANCH"
+
+  ci:
+    needs: bump
+    if: needs.bump.outputs.version
+    uses: ./.github/workflows/ci.yml
+    with:
+      ref: ${{ needs.bump.outputs.branch }}
+
+  pr:
+    needs: [bump, ci]
+    if: always() && needs.bump.outputs.version
+    runs-on: ubuntu-latest
+    steps:
+      - name: Open the PR with the CI result
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.bump.outputs.version }}
+          BRANCH: ${{ needs.bump.outputs.branch }}
+          RESULT: ${{ needs.ci.result }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ "$RESULT" = "success" ]; then status="✅ CI passed: safe to merge."; else status="❌ CI $RESULT: see the failing step in $RUN (packages/desktop/README.md, Updating opencode)."; fi
+          gh pr create --repo "$GITHUB_REPOSITORY" --head "$BRANCH" --title "Move to opencode $VERSION" --body "$(printf 'Moves Tony to opencode %s: the app pin, the plugin pin and the CI engine.\n\n%s\n\nCI for this branch (app builds on macOS, Windows and Linux, Tony'"'"'s features against the new engine, app launch): %s\n' "$VERSION" "$status" "$RUN")"

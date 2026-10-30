@@ -4,6 +4,12 @@ on:
   push:
     branches: [main, "claude/**"]
   pull_request:
+  # The opencode-update workflow runs the full suite on its bump branch.
+  workflow_call:
+    inputs:
+      ref:
+        type: string
+        required: true
 
 jobs:
   test:
@@ -14,6 +20,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.4.4
@@ -29,8 +37,9 @@ jobs:
         if: runner.os != 'Windows'
         run: bun test packages/eval/test/events.test.ts packages/eval/test/report.test.ts packages/eval/test/tasks.test.ts packages/eval/test/run.test.ts
       # The integration tests drive a real opencode, the same engine version the app bundles.
-      - name: Install opencode 2.2.1
-        run: npm i -g @opencode/cli@2.2.1
+      - name: Install the pinned opencode
+        shell: bash
+        run: npm i -g "@opencode/cli@$(cat packages/desktop/opencode-version)"
       - name: Integration (real opencode + scripted model)
         shell: bash
         env:
@@ -48,6 +57,8 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.4.4

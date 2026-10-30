@@ -37,7 +37,7 @@ Everything else (screens, context meter, MCP status, terminal) is opencode's, un
 
 ## Updating opencode
 1. Put the new version in `opencode-version`.
-2. Bump `@opencode/plugin` in `packages/opencode-plugin/package.json`, and the opencode install in `.github/workflows/ci.yml`. `packages/eval/test/pins.test.ts` fails until all three match.
+2. Bump `@opencode/plugin` in `packages/opencode-plugin/package.json`. CI installs the engine named in `opencode-version`. `packages/eval/test/pins.test.ts` fails until the two match. `bun packages/desktop/src/bump.ts <version>` does steps 1 and 2.
 3. Run `bun install`, then the checks below. The `opencode-update` workflow does all of this daily and opens a PR.
 
 If a patch no longer applies, the build stops and names it. To refresh it:

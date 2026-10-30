@@ -17,8 +17,6 @@ test("the plugin builds against the same opencode version the app ships", () => 
   expect(plugin.peerDependencies["@opencode/plugin"]).toBe(version)
 })
 
-test("CI tests against the same opencode version the app ships", () => {
-  const installs = [...read(".github/workflows/ci.yml").matchAll(/@opencode\/cli@([\d.]+)/g)].map((m) => m[1])
-  expect(installs.length).toBeGreaterThan(0)
-  expect(new Set(installs)).toEqual(new Set([version]))
+test("CI installs the opencode version the app ships, not a version of its own", () => {
+  expect(read(".github/workflows/ci.yml")).not.toMatch(/@opencode\/cli@\d/)
 })
