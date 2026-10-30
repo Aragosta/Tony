@@ -20,7 +20,7 @@ export async function registerPrompt(host: Host, o: TonyOptions, detect: (dir: s
       } catch {
         checks = []
       }
-      additions.set(sessionID, (a = promptAddition(checks)))
+      additions.set(sessionID, (a = promptAddition(checks, o.prompt.review)))
     }
     return a
   }

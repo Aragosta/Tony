@@ -107,7 +107,7 @@ opencode runs with `--thinking`, so the model's reasoning (llama.cpp's `reasonin
 
 The **first wrong turn** is the most basic cause found: broken setup, then the wrong files, then unchecked work, then the earliest bad finding.
 
-**The suite (`evals/diag/`).** Five hard tasks. Each has visible tests, hidden grader cases, a reference `solution/` and `diag` hints. `packages/eval/test/diag-tasks.test.ts` checks that every task fails untouched and passes with its solution.
+**The suite (`evals/diag/`).** Six hard tasks. Each has visible tests, hidden grader cases, a reference `solution/` and `diag` hints. `packages/eval/test/diag-tasks.test.ts` checks that every task fails untouched and passes with its solution.
 | id | Tests | Trap |
 |---|---|---|
 | `stale-cache` | Symptom to root cause; fix every occurrence | Fixing only the visible case and missing the bulk-import path |
@@ -115,6 +115,7 @@ The **first wrong turn** is the most basic cause found: broken setup, then the w
 | `signature-migration` | A refactor across 13 call sites in 6 files | The `...args` forwarding; swapping body and headers |
 | `deep-rounding` | Following a call chain through 29 files with look-alikes | Fixing the deprecated copy, or patching only the visible path |
 | `calc-spec` | Writing a parser from an 11-rule spec | Right associativity, `-2^2`, error positions; stopping at the 4 visible tests |
+| `tool-stress` | Precise tool use: a 2,400-line tab-indented file past the read limit, an `oldString` that matches twice, a path with a space; graded byte for byte | Editing both identical lines, missing the occurrence at line 2,300, rewriting the file and losing its tabs |
 
 A task's `diag` field in `task.json`: `{ "skill", "trap", "keyFiles": [...], "protect": [...] }`. Any eval task can carry it.
 

@@ -18,7 +18,7 @@ off by default, with its own variant in `evals/variants.json`. Background: `rese
 ## Next, in order
 | # | Item | Why | Status |
 |---|---|---|---|
-| 1 | **`gate.review` A/B** on `evals/diag`: `baseline,tony,tony-review`, `--repeat 3` | First diagnostic runs (Qwen, 10 runs): every failure was `incomplete-fix`, visible tests green, hidden cases red. Two of the six were on `stale-cache`, whose grader was unfair (since fixed), so the clear cases are `async-pool` and `calc-spec`. The first `tony-review` run on `stale-cache` fixed both invalidation sites. | Built, waiting for the run |
+| 1 | **Review A/B** on `evals/diag`: `tony,tony-review,tony-review-prompt`, `--repeat 3` (an extra round against one prompt line) | First diagnostic runs (Qwen, 10 runs): every failure was `incomplete-fix`, visible tests green, hidden cases red. Two of the six were on `stale-cache`, whose grader was unfair (since fixed), so the clear cases are `async-pool` and `calc-spec`. The first `tony-review` run on `stale-cache` fixed both invalidation sites. | Built, waiting for the run |
 | 2 | **One-feature-off runs**: `tony-no-prompt`, `tony-no-gate`, `tony-no-loop-guard` | The four kept features have scripted or single-trace evidence only | Variants exist |
 | 3 | **A long-context task** in `evals/diag` | Needed before any context work can be measured | |
 | 4 | **Stale tool-output clearing**, cache-safe batches | Claude Code and Copilot both keep context small; measured on item 3 | |

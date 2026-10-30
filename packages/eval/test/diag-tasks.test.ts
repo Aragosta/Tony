@@ -17,8 +17,8 @@ const answer = () => {
 // Each diagnostic task must be fair: its check fails on the starting repo and passes with the reference solution.
 describe("diagnostic tasks", () => {
   const tasks = loadTasks(root)
-  test("there are five, each with hints and a solution", () => {
-    expect(tasks.map((t) => t.id)).toEqual(["async-pool", "calc-spec", "deep-rounding", "signature-migration", "stale-cache"])
+  test("there are six, each with hints and a solution", () => {
+    expect(tasks.map((t) => t.id)).toEqual(["async-pool", "calc-spec", "deep-rounding", "signature-migration", "stale-cache", "tool-stress"])
     for (const t of tasks) {
       expect(t.diag?.skill).toBeTruthy()
       expect(t.diag?.keyFiles?.length).toBeGreaterThan(0)

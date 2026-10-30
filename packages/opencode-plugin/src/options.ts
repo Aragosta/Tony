@@ -8,6 +8,8 @@ export interface LoopGuardOptions {
 
 export interface PromptOptions {
   enabled: boolean
+  /** One extra prompt line: check the work against the whole request (experiment, off by default). */
+  review: boolean
 }
 
 export interface LocalOptions {
@@ -40,7 +42,7 @@ export const DEFAULTS: TonyOptions = {
     mutationTools: ["edit", "write", "patch"],
     exemptTools: ["question", "todowrite"],
   },
-  prompt: { enabled: true },
+  prompt: { enabled: true, review: false },
   local: {
     providers: ["ollama", "lmstudio", "llamacpp", "vllm", "local"],
     contextLimit: 131072,

@@ -1,0 +1,17 @@
+{
+  "prompt": "Three changes, and nothing else: (1) members get 15% off instead of 10%; staff keep 10%. (2) Rename the promotion SUMMER-21 to SUMMER-22 everywhere it appears in src/pricing/rules.ts. (3) In \"src/legacy config/limits.ts\", raise MAX_ITEMS from 50 to 100; MAX_BATCHES stays 50.",
+  "check": [
+    { "name": "tests unchanged", "run": "git diff --quiet HEAD -- test" },
+    { "name": "visible tests pass", "run": "bun test" },
+    { "name": "rules.ts is exactly right", "run": "cmp -s src/pricing/rules.ts \"$EVAL_TASK_DIR/hidden/expected/src/pricing/rules.ts\" || { git diff --stat HEAD -- src/pricing/rules.ts; diff \"$EVAL_TASK_DIR/hidden/expected/src/pricing/rules.ts\" src/pricing/rules.ts | head -20; exit 1; }" },
+    { "name": "limits.ts is exactly right", "run": "cmp -s \"src/legacy config/limits.ts\" \"$EVAL_TASK_DIR/hidden/expected/src/legacy config/limits.ts\" || { diff \"$EVAL_TASK_DIR/hidden/expected/src/legacy config/limits.ts\" \"src/legacy config/limits.ts\"; exit 1; }" },
+    { "name": "no other source file changed", "run": "git diff --quiet HEAD -- src/pricing/format.ts package.json" }
+  ],
+  "timeoutSec": 900,
+  "diag": {
+    "skill": "Precise tool use: a 2,400-line file with tabs (past the 2,000-line read limit), an oldString that matches twice, an occurrence only a search or an offset read finds, and a path with a space.",
+    "trap": "Editing staffPrice too (the same line twice), missing the SUMMER-21 at line 2,300, rewriting the big file with write and changing its tabs, raising MAX_BATCHES, or failing to quote the path with a space.",
+    "keyFiles": ["src/pricing/rules.ts", "src/legacy config/limits.ts"],
+    "protect": ["test/"]
+  }
+}

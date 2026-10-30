@@ -141,3 +141,22 @@ Re-checked against the sources (`mods/types/claude-code.d.ts` and CHANGELOG; Cop
 - **How it differs from the judge and `/goal`:** no verdict from a side call. A side call can't run tests, and on a 30B model a verdict is another guess. The agent does the checking itself and must leave evidence: tests and their output.
 - **How it differs from Copilot:** it asks for evidence per requirement, not just "continue".
 - **The risk:** one extra round on every editing request, including ones that were already right. It is close in intent to the judge we removed for never being measured, so it stays off by default until `tony-review` beats `tony` on the diag suite without slowing the tasks it already passes.
+
+## Checking finished work and tool calling: what the references do (2026-10-30)
+**Checking finished work**
+| | Claude Code | Copilot | Tony |
+|---|---|---|---|
+| Stop refusal | Stop and SubagentStop hooks (scripts, or `prompt` hooks the model judges); they can keep the turn going with feedback | Stop hooks too, plus autopilot: no `task_complete` call → nudge, at most 5 times | Gate: failing checks go back; `gate.review` once per request |
+| Goal loop | `/goal`: a judge checks a stated condition each round | None | opencode's own `/goal` |
+| Verify step | A project's `verify` skill runs before each commit; `/code-review` has separate agents verify each finding | `get_errors` tool; new errors shown in edit results; "do not loop more than 3 times" fixing one file | The project's checks, named in the prompt |
+| "Hidden tests" rule | Not in the sources read | Only in the prompt for some GPT models: after tests pass, think about the original intent, write more tests, hidden tests must pass too. Qwen gets the default prompt, which doesn't have it. | `prompt.review` (that rule as one line) against `gate.review` (an extra round) |
+
+**Tool calling**
+| | Claude Code | Copilot | opencode 2.2.1 (under Tony) |
+|---|---|---|---|
+| Bad input | Accepts near-miss names (`file_path` for `path`), ignores stray parameters, lists every invalid parameter at once | `ERROR: Your input to the tool was invalid (…)`, `The tool "x" does not exist` | `tool-input-repair` plugin |
+| Failed edit | "String not found in file"; read-before-edit, relaxed to count grep, head and tail as reads | Edit healing: unescaping, then a model call to correct `oldString` (some models); learns per model which edit tool succeeds | Fuzzy matching; "Found N matches … add more context or set replaceAll" |
+| Prompt rules | Not public | Call tools in parallel; read big sections, not many small reads; one terminal command at a time; 3–5 lines of context in `oldString` (a reminder in the latest message) | opencode's own tool guidance (kept) |
+| Large output | To disk over 50K characters; a note when a shell command changes files the model has read | Execution subagent returns only the relevant output | To a file over 2,000 lines or 50 KB; reads capped at 2,000 lines |
+
+What the Qwen runs show for tool calling: about 1 failed call per run, mostly a root-absolute path (`/test/prices.test.ts`) and one `edit-no-match`, and no loops. opencode already repairs input and matches edits fuzzily, so nothing is added there until `tool-stress` shows a failure. If it does, Copilot's 3–5-lines-of-context reminder is the cheapest thing to try first.

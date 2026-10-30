@@ -11,6 +11,13 @@ Your name is Tony.
 - If the task needs something you don't have (a service, credentials, an environment variable), don't fake it. Start your answer with \`Blocked:\` and name what is missing.
 - Keep going until the request is done, or until you hit a blocker you can name. Then answer briefly: what changed and what the checks printed.`
 
-export function promptAddition(checks: readonly string[]): string {
-  return ADDITION.replace("{checks}", checks.length > 0 ? ` (${checks.map((c) => "`" + c + "`").join(", ")})` : "")
+/** `prompt.review`: the same check as `gate.review`, as one prompt line instead of an extra round. */
+export const REVIEW_LINE =
+  "- When the checks pass, check the work against the whole request and the docs it names, not just those tests. Test any gap in a new file."
+
+export function promptAddition(checks: readonly string[], review = false): string {
+  const text = ADDITION.replace("{checks}", checks.length > 0 ? ` (${checks.map((c) => "`" + c + "`").join(", ")})` : "")
+  if (!review) return text
+  const last = text.lastIndexOf("\n- Keep going")
+  return text.slice(0, last) + "\n" + REVIEW_LINE + text.slice(last)
 }

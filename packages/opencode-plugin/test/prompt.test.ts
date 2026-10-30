@@ -2,7 +2,7 @@ import { expect, test } from "bun:test"
 import type { ContextEvent } from "../src/host.ts"
 import { DEFAULTS } from "../src/options.ts"
 import { registerPrompt } from "../src/core/prompt/register.ts"
-import { promptAddition } from "../src/core/prompt/text.ts"
+import { promptAddition, REVIEW_LINE } from "../src/core/prompt/text.ts"
 import { createFakeHost } from "./fake-host.ts"
 
 const event = (agent = "build", system = [{ text: "OLD" }, { text: "ENV" }]): ContextEvent => ({
@@ -73,7 +73,7 @@ test("no-op on empty system", async () => {
 
 test("disabled does nothing", async () => {
   const f = createFakeHost()
-  await registerPrompt(f.host, { ...DEFAULTS, prompt: { enabled: false } })
+  await registerPrompt(f.host, { ...DEFAULTS, prompt: { ...DEFAULTS.prompt, enabled: false } })
   const e = event()
   await f.context(e)
   expect(e.system[0]!.text).toBe("OLD")
@@ -81,4 +81,18 @@ test("disabled does nothing", async () => {
 
 test("at most 150 words", () => {
   expect(promptAddition(["npm run typecheck", "npm run lint", "npm run test"]).split(/\s+/).length).toBeLessThanOrEqual(150)
+})
+
+test("prompt.review adds one short line before the last one", async () => {
+  const f = createFakeHost()
+  await registerPrompt(f.host, { ...DEFAULTS, prompt: { enabled: true, review: true } }, () => [])
+  const e = event()
+  await f.context(e)
+  const lines = e.system[0]!.text.split("\n")
+  expect(lines.at(-2)).toBe(REVIEW_LINE)
+  expect(lines.at(-1)).toStartWith("- Keep going")
+  const words = (t: string) => t.split(/\s+/).length
+  const checks = ["npm run typecheck", "npm run lint", "npm run test"]
+  expect(words(promptAddition(checks, true)) - words(promptAddition(checks))).toBeLessThanOrEqual(30)
+  expect(promptAddition([])).not.toContain(REVIEW_LINE)
 })
