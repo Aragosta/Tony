@@ -111,7 +111,7 @@ opencode runs with `--thinking`, so the model's reasoning (llama.cpp's `reasonin
 | `ended-announcing`, `no-answer` | Stopped with "Let me …", or with no answer. |
 | `long-thinking`, `no-thinking` | Thinking over 8,000 characters in one step, or none at all. |
 | `protected-changed` | Changed a protected path (`diag.protect`, usually `test/`). |
-| `stalled` | Timed out more than a minute after the model's last output: the server hung (some llama.cpp builds do with `--reasoning-budget`). Fix the setup before reading anything else into the run. |
+| `stalled` | Timed out more than a minute after the model's last output: the server hung (some llama.cpp builds hang in the reasoning-budget sampler, with or without `--reasoning-budget`). Fix the setup before reading anything else into the run. |
 | `check-failed`, `timeout`, `infra-error`, `loop-guard`, `gate-nudge` | The grader's verdict, and harness events. |
 
 The **first wrong turn** is the most basic cause found: broken setup, then the wrong files, then unchecked work, then the earliest bad finding.

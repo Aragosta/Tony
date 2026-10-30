@@ -286,7 +286,7 @@ export function diagnose(t: Timeline, ctx: DiagContext): Diagnosis {
     add(
       "stalled",
       "bad",
-      `nothing came from the model for the last ${Math.round(ctx.durationMs / 1000 - span)} s before the timeout: the server hung or a step never ended (check the llama-server log; --reasoning-budget can hang some builds)`,
+      `nothing came from the model for the last ${Math.round(ctx.durationMs / 1000 - span)} s before the timeout: the server hung or a step never ended (check the llama-server log; some llama.cpp builds hang in tool-calling sessions in the reasoning-budget sampler, even without --reasoning-budget)`,
       steps.at(-1)?.index,
     )
   }
