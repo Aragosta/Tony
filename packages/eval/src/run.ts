@@ -38,6 +38,8 @@ export interface RunResult {
   durationMs: number
   metrics: RunMetrics
   checkOutput: string
+  /** Name of the first check step that failed. */
+  failedCheck?: string
   /** Last 2000 chars of opencode's stderr, for runs that fail for infrastructure reasons. */
   stderrTail: string
   gate?: GateRecord
@@ -55,6 +57,40 @@ function lastGateRecord(file: string): GateRecord | undefined {
   } catch {
     return undefined
   }
+}
+
+export interface CheckResult {
+  passed: boolean
+  failedCheck?: string
+  /** Output of the failing step, or of the last step when all pass. */
+  output: string
+}
+
+/**
+ * Runs the task's check steps in order in `workspace`, within the task's timeout; stops at the first failure.
+ * The steps run code the model wrote, so they are bounded like the run itself.
+ */
+export function runChecks(task: EvalTask, workspace: string, finalTextFile: string): CheckResult {
+  const deadline = Date.now() + task.timeoutSec * 1000
+  let output = ""
+  for (const step of task.checks) {
+    const left = deadline - Date.now()
+    if (left <= 0) return { passed: false, failedCheck: step.name, output: "check timed out" }
+    const r = spawnSync("bash", ["-lc", step.run], {
+      cwd: workspace,
+      encoding: "utf8",
+      // EVAL_FINAL_TEXT lets a check grade the agent's answer ("did it say it can't be done?"); EVAL_TASK_DIR holds
+      // files the agent never sees, such as hidden test cases.
+      env: { ...process.env, PWD: workspace, EVAL_FINAL_TEXT: finalTextFile, EVAL_TASK_DIR: task.dir },
+      timeout: left,
+      killSignal: "SIGKILL",
+      maxBuffer: 64 * 1024 * 1024,
+    })
+    if (r.error) return { passed: false, failedCheck: step.name, output: `check timed out or failed to run: ${r.error.message}` }
+    output = ((r.stdout ?? "") + (r.stderr ?? "")).slice(-CHECK_OUTPUT_CHARS)
+    if (r.status !== 0) return { passed: false, failedCheck: step.name, output }
+  }
+  return { passed: true, output }
 }
 
 /** Runs opencode in its own process group; on timeout the whole group is killed. */
@@ -116,23 +152,14 @@ export async function runTask(task: EvalTask, opts: RunOptions): Promise<RunResu
   await writeFile(finalTextFile, metrics.finalText)
 
   let passed = false
+  let failedCheck: string | undefined
   let checkOutput = run.timedOut ? `timed out after ${task.timeoutSec}s` : ""
   if (run.spawnError) checkOutput = `opencode failed to start: ${run.spawnError}`
   else if (!run.timedOut) {
-    // The check runs code the model wrote; bound it like the run itself.
-    const check = spawnSync("bash", ["-lc", task.check], {
-      cwd: workspace,
-      encoding: "utf8",
-      // Lets a check grade the agent's answer, not just the files (e.g. "did it say it can't be done?").
-      env: { ...process.env, EVAL_FINAL_TEXT: finalTextFile },
-      timeout: task.timeoutSec * 1000,
-      killSignal: "SIGKILL",
-      maxBuffer: 64 * 1024 * 1024,
-    })
-    passed = check.status === 0
-    checkOutput = check.error
-      ? `check timed out or failed to run: ${check.error.message}`
-      : ((check.stdout ?? "") + (check.stderr ?? "")).slice(-CHECK_OUTPUT_CHARS)
+    const c = runChecks(task, workspace, finalTextFile)
+    passed = c.passed
+    failedCheck = c.failedCheck
+    checkOutput = c.output
   }
 
   const gate = lastGateRecord(statusFile)
@@ -149,6 +176,7 @@ export async function runTask(task: EvalTask, opts: RunOptions): Promise<RunResu
     durationMs,
     metrics,
     checkOutput,
+    ...(failedCheck ? { failedCheck } : {}),
     stderrTail: run.stderr,
     ...(gate ? { gate } : {}),
     ...(keep ? { workspace } : {}),

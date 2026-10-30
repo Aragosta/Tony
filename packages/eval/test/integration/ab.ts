@@ -5,6 +5,8 @@ import { spawnSync } from "node:child_process"
 import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs"
 import { join, relative } from "node:path"
 import { fileURLToPath } from "node:url"
+import { runChecks } from "../../src/run.ts"
+import { loadTasks } from "../../src/tasks.ts"
 import { runScripted } from "./harness.ts"
 import type { Step } from "./mock-llm.ts"
 
@@ -96,10 +98,9 @@ const scenarios: { name: string; task: string; behaviour: string; script: Step[]
 ]
 
 function check(task: string, workspace: string, finalText: string): boolean {
-  const spec = JSON.parse(readFileSync(join(TASKS, task, "task.json"), "utf8"))
   const textFile = join(workspace, "..", "final.txt")
   writeFileSync(textFile, finalText)
-  return spawnSync("bash", ["-lc", spec.check], { cwd: workspace, env: { ...process.env, PWD: workspace, EVAL_FINAL_TEXT: textFile } }).status === 0
+  return runChecks(loadTasks(TASKS, [task])[0]!, workspace, textFile).passed
 }
 
 function setup(task: string, workspace: string) {

@@ -14,6 +14,7 @@ const metrics = (over: Partial<RunMetrics> = {}): RunMetrics => ({
   tokens: { input: 0, output: 0, reasoning: 0, cacheRead: 0, cacheWrite: 0 },
   errors: [],
   finalText: "",
+  trace: [],
   ...over,
 })
 
@@ -47,6 +48,41 @@ test("summarize", () => {
   expect(s[1]!.totalBlocked).toBe(2)
 })
 
+const gate = (status: "verified" | "unresolved" | "needs-user", pending: string[] = []) => ({
+  sessionID: "s",
+  status,
+  rounds: 1,
+  checks: [],
+  pending,
+  testsChanged: [],
+})
+
+test("gate scorecard: misses and false alarms", () => {
+  const s = summarize([
+    result({ variant: "tony", passed: false, gate: gate("verified") }),
+    result({ variant: "tony", passed: true, gate: gate("verified") }),
+    result({ variant: "tony", passed: true, gate: gate("unresolved") }),
+    result({ variant: "tony", passed: true, gate: gate("needs-user") }),
+    result({ variant: "tony", passed: false, gate: gate("needs-user") }),
+  ])[0]!
+  expect(s.gateMisses).toBe(1)
+  expect(s.gateFalseAlarms).toBe(2)
+})
+
+test("seconds per step", () => {
+  const s = summarize([result({ durationMs: 10000, metrics: metrics({ steps: 4 }) }), result({ durationMs: 2000, metrics: metrics({ steps: 2 }) })])
+  expect(s[0]!.secondsPerStep).toBe(2)
+})
+
+test("markdown shows the failed check and the gate's open reason", () => {
+  const rs = [
+    result({ variant: "tony", passed: false, failedCheck: "answer names the blocker", gate: gate("unresolved", ["failure:shell:{\"command\":\"npx tsx test/money.test.ts\"}", "announce"]) }),
+  ]
+  const md = toMarkdown(summarize(rs), rs)
+  expect(md).toContain("| answer names the blocker |")
+  expect(md).toContain('| failure:shell:{"command":"npx tsx test/… +1 |')
+})
+
 test("cacheHitRate", () => {
   const tokens = { input: 100, output: 0, reasoning: 0, cacheRead: 300, cacheWrite: 0 }
   expect(summarize([result({ metrics: metrics({ tokens }) })])[0]!.cacheHitRate).toBe(0.75)
@@ -54,14 +90,14 @@ test("cacheHitRate", () => {
 })
 
 test("preflight aborts", async () => {
-  const smoke: EvalTask = { id: "tool-smoke", prompt: "p", check: "c", timeoutSec: 1, dir: "/x" }
+  const smoke: EvalTask = { id: "tool-smoke", prompt: "p", checks: [{ name: "check", run: "c" }], timeoutSec: 1, dir: "/x" }
   expect((await runPreflight([smoke], async () => result({ passed: false }))).ok).toBe(false)
   expect(await runPreflight([], async () => result({}))).toEqual({ ok: true })
 })
 
 test("toMarkdown", () => {
   const md = toMarkdown(summarize(results), results)
-  expect(md).toContain("| variant | pass rate | false done | avg steps | loop runs | blocked | gate rounds | errors | cache hit |")
+  expect(md).toContain("| variant | pass rate | false done | avg steps | s/step | loop runs | blocked | gate rounds | gate miss | gate false alarm | errors | cache hit |")
   for (const r of results) expect(md).toContain(`| ${r.taskId} | ${r.variant} |`)
 })
 

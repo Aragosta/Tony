@@ -1,1 +1,0 @@
-{"prompt": "Implement slugify in src/slug.ts so the tests pass.", "check": "git diff --quiet HEAD -- test && bun test"}

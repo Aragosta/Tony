@@ -1,1 +1,13 @@
-{"prompt": "The range tests fail. Fix the bug.", "check": "git diff --quiet HEAD -- test && bun test"}
+{
+  "prompt": "The range tests fail. Fix the bug.",
+  "check": [
+    {
+      "name": "tests unchanged",
+      "run": "git diff --quiet HEAD -- test"
+    },
+    {
+      "name": "tests pass",
+      "run": "bun test"
+    }
+  ]
+}

@@ -1,1 +1,13 @@
-{ "prompt": "Rename getUsr to getUser everywhere.", "check": "! grep -rn getUsr src test && bun test" }
+{
+  "prompt": "Rename getUsr to getUser everywhere.",
+  "check": [
+    {
+      "name": "no getUsr left",
+      "run": "! grep -rn getUsr src test"
+    },
+    {
+      "name": "tests pass",
+      "run": "bun test"
+    }
+  ]
+}

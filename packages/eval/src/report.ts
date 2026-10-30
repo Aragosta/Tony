@@ -19,6 +19,12 @@ export interface VariantSummary {
   /** Runs Tony's completion gate marked verified. */
   verifiedRuns: number
   avgGateRounds: number
+  /** The gate said `verified` but the run failed: a fake or a gap it can't see. */
+  gateMisses: number
+  /** The gate ended `unresolved` or `needs-user` but the run passed: it sent the agent back for nothing. */
+  gateFalseAlarms: number
+  /** Wall-clock seconds per model step. */
+  secondsPerStep: number
   /** Runs with opencode errors or a non-zero exit: likely infrastructure, not the model. */
   errorRuns: number
   tokens: Tokens
@@ -62,6 +68,9 @@ export function summarize(results: readonly RunResult[]): VariantSummary[] {
         falseDone: runs.filter((r) => !r.passed && !r.timedOut && !r.metrics.stopped && !isErrorRun(r)).length,
         verifiedRuns: runs.filter((r) => r.gate?.status === "verified").length,
         avgGateRounds: sum((r) => r.gate?.rounds ?? 0) / runs.length,
+        gateMisses: runs.filter((r) => r.gate?.status === "verified" && !r.passed).length,
+        gateFalseAlarms: runs.filter((r) => (r.gate?.status === "unresolved" || r.gate?.status === "needs-user") && r.passed).length,
+        secondsPerStep: sum((r) => r.metrics.steps) === 0 ? 0 : sum((r) => r.durationMs) / 1000 / sum((r) => r.metrics.steps),
         errorRuns: runs.filter(isErrorRun).length,
         tokens,
         cacheHitRate: prompt === 0 ? 0 : tokens.cacheRead / prompt,
@@ -72,21 +81,30 @@ export function summarize(results: readonly RunResult[]): VariantSummary[] {
 
 const pct = (n: number) => `${Math.round(n * 100)}%`
 const fixed = (n: number) => n.toFixed(1)
+const PENDING_CHARS = 40
+
+/** The gate's first open reason, short, with a count of the rest. */
+function pendingCell(pending: readonly string[] | undefined): string {
+  if (!pending || pending.length === 0) return "-"
+  const first = pending[0]!.replace(/\|/g, "/")
+  const short = first.length > PENDING_CHARS ? first.slice(0, PENDING_CHARS - 1) + "…" : first
+  return pending.length > 1 ? `${short} +${pending.length - 1}` : short
+}
 
 export function toMarkdown(summaries: readonly VariantSummary[], results: readonly RunResult[]): string {
   const lines = [
-    "| variant | pass rate | false done | avg steps | loop runs | blocked | gate rounds | errors | cache hit |",
-    "|---|---|---|---|---|---|---|---|---|",
+    "| variant | pass rate | false done | avg steps | s/step | loop runs | blocked | gate rounds | gate miss | gate false alarm | errors | cache hit |",
+    "|---|---|---|---|---|---|---|---|---|---|---|---|",
     ...summaries.map(
       (s) =>
-        `| ${s.variant} | ${pct(s.passRate)} (${s.passed}/${s.runs}) | ${s.falseDone} | ${fixed(s.avgSteps)} | ${s.loopRuns} | ${s.totalBlocked} | ${fixed(s.avgGateRounds)} | ${s.errorRuns} | ${pct(s.cacheHitRate)} |`,
+        `| ${s.variant} | ${pct(s.passRate)} (${s.passed}/${s.runs}) | ${s.falseDone} | ${fixed(s.avgSteps)} | ${fixed(s.secondsPerStep)} | ${s.loopRuns} | ${s.totalBlocked} | ${fixed(s.avgGateRounds)} | ${s.gateMisses} | ${s.gateFalseAlarms} | ${s.errorRuns} | ${pct(s.cacheHitRate)} |`,
     ),
     "",
-    "| task | variant | passed | steps | tool calls | blocked | max streak | gate | errors | seconds |",
-    "|---|---|---|---|---|---|---|---|---|---|",
+    "| task | variant | passed | failed check | steps | tool calls | blocked | max streak | gate | gate pending | errors | seconds |",
+    "|---|---|---|---|---|---|---|---|---|---|---|---|",
     ...results.map(
       (r) =>
-        `| ${r.taskId} | ${r.variant} | ${r.passed ? "yes" : r.timedOut ? "timeout" : "no"} | ${r.metrics.steps} | ${r.metrics.toolCalls} | ${r.metrics.blocked} | ${r.metrics.maxIdenticalStreak} | ${r.gate?.status ?? "-"} | ${r.metrics.errors.length} | ${fixed(r.durationMs / 1000)} |`,
+        `| ${r.taskId} | ${r.variant} | ${r.passed ? "yes" : r.timedOut ? "timeout" : "no"} | ${r.failedCheck ?? "-"} | ${r.metrics.steps} | ${r.metrics.toolCalls} | ${r.metrics.blocked} | ${r.metrics.maxIdenticalStreak} | ${r.gate?.status ?? "-"} | ${pendingCell(r.gate?.pending)} | ${r.metrics.errors.length} | ${fixed(r.durationMs / 1000)} |`,
     ),
   ]
   return lines.join("\n") + "\n"

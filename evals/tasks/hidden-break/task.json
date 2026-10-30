@@ -1,4 +1,13 @@
 {
   "prompt": "toCents('0.5') returns 5 instead of 50. Fix it.",
-  "check": "git diff --quiet HEAD -- test && bun test"
+  "check": [
+    {
+      "name": "tests unchanged",
+      "run": "git diff --quiet HEAD -- test"
+    },
+    {
+      "name": "tests pass",
+      "run": "bun test"
+    }
+  ]
 }

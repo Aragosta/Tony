@@ -10,11 +10,12 @@ import type { EvalTask } from "../src/tasks.ts"
 const fake = fileURLToPath(new URL("./fixtures/fake-opencode.sh", import.meta.url))
 const repoRoot = fileURLToPath(new URL("../../../", import.meta.url))
 
-function makeTask(check: string): EvalTask {
+function makeTask(check: string | EvalTask["checks"]): EvalTask {
   const dir = mkdtempSync(join(tmpdir(), "tony-task-"))
   mkdirSync(join(dir, "repo"))
   writeFileSync(join(dir, "repo", "README.md"), "x")
-  return { id: "t", prompt: "do it", check, timeoutSec: 2, dir }
+  const checks = typeof check === "string" ? [{ name: "check", run: check }] : check
+  return { id: "t", prompt: "do it", checks, timeoutSec: 2, dir }
 }
 
 const opts: RunOptions = { model: "m/x", variant: "baseline", tonyHome: repoRoot, langfuse: false, opencodeBin: fake, keep: false }
@@ -34,6 +35,28 @@ test("fails when check fails", async () => {
   const r = await runTask(makeTask("false"), opts)
   expect(r.passed).toBe(false)
   expect(r.workspace).toBeDefined()
+})
+
+test("names the first failing check step and keeps its output", async () => {
+  const r = await runTask(
+    makeTask([
+      { name: "agent wrote done.txt", run: "test -f done.txt" },
+      { name: "answer mentions X", run: "echo nope; false" },
+      { name: "never runs", run: "touch ran" },
+    ]),
+    opts,
+  )
+  expect(r.passed).toBe(false)
+  expect(r.failedCheck).toBe("answer mentions X")
+  expect(r.checkOutput).toBe("nope\n")
+})
+
+test("checks see the task folder as EVAL_TASK_DIR", async () => {
+  const task = makeTask([{ name: "hidden file", run: 'test -f "$EVAL_TASK_DIR/hidden.txt"' }])
+  writeFileSync(join(task.dir, "hidden.txt"), "x")
+  const r = await runTask(task, opts)
+  expect(r.passed).toBe(true)
+  expect(r.failedCheck).toBeUndefined()
 })
 
 test("timeout marks the run failed", async () => {

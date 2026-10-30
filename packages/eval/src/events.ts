@@ -18,6 +18,8 @@ export interface RunMetrics {
   tokens: Tokens
   errors: string[]
   finalText: string
+  /** One line per tool call, in order: `tool summary`, prefixed `✗ ` when it failed. */
+  trace: string[]
 }
 
 type Json = Record<string, any>
@@ -37,6 +39,16 @@ function errorText(error: unknown): string {
   return ""
 }
 
+const TRACE_CHARS = 100
+
+/** The part of a tool's input that says what it did: the command, path or pattern. */
+function traceLine(tool: string, input: unknown, failed: boolean): string {
+  const i: Json = typeof input === "object" && input !== null ? input : {}
+  const detail = [i.command, i.path, i.filePath, i.pattern, i.url].find((v) => typeof v === "string") ?? JSON.stringify(input ?? null)
+  const line = `${tool} ${String(detail).replace(/\s+/g, " ").trim()}`
+  return (failed ? "✗ " : "") + (line.length > TRACE_CHARS ? line.slice(0, TRACE_CHARS - 1) + "…" : line)
+}
+
 const num = (v: unknown) => (typeof v === "number" ? v : 0)
 
 export function parseEvents(lines: readonly string[]): RunMetrics {
@@ -50,6 +62,7 @@ export function parseEvents(lines: readonly string[]): RunMetrics {
     tokens: { input: 0, output: 0, reasoning: 0, cacheRead: 0, cacheWrite: 0 },
     errors: [],
     finalText: "",
+    trace: [],
   }
   let lastCall: string | undefined
   let streak = 0
@@ -84,6 +97,7 @@ export function parseEvents(lines: readonly string[]): RunMetrics {
         streak = call === lastCall ? streak + 1 : 1
         lastCall = call
         m.maxIdenticalStreak = Math.max(m.maxIdenticalStreak, streak)
+        m.trace.push(traceLine(String(part.tool), state.input, state.status === "error"))
         if (state.status === "error") {
           m.toolErrors++
           const text = errorText(state.error)
