@@ -24,7 +24,7 @@ There are no published downloads yet. CI builds the app for macOS and Windows on
 git clone https://github.com/Aragosta/Tony && cd Tony && bun install && bun run --cwd packages/desktop build
 ```
 The app lands in `packages/desktop/.build/opencode/packages/desktop/dist/`. The builds are unsigned, so the OS warns on first open:
-- **macOS:** right-click the app, then **Open**.
+- **macOS:** open it once, then **System Settings → Privacy & Security → Open Anyway**. Or run `xattr -dr com.apple.quarantine /Applications/Tony.app` once.
 - **Windows:** **More info**, then **Run anyway**.
 
 Tony uses your opencode config (`~/.config/opencode/opencode.json`; on Windows `C:\Users\<you>\.config\opencode\opencode.json`) for models, providers and MCP servers. It keeps its own sessions. To check Tony is active, ask "What's your name?" It answers "Tony". When the completion gate sends the agent back, you see a `Tony: …` row in the session.

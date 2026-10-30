@@ -102,6 +102,8 @@ const built = {
 }
 for (const file of [built.executable, built.engine, built.brain, built.config])
   if (!existsSync(file)) throw new Error(`The packed app is missing ${file}`)
+// Unsigned: Apple-silicon Macs refuse a bundle whose signature no longer matches, so sign it ad hoc.
+if (os === "mac") await $`codesign --force --deep --sign - ${app}`
 // A tarball keeps the .app bundle's symlinks and permissions intact.
 await $`tar -cf ${built.archive} -C ${dirname(app)} ${app.slice(dirname(app).length + 1)}`
 writeFileSync(join(work, "app.json"), JSON.stringify(built, null, 2) + "\n")

@@ -37,3 +37,43 @@ jobs:
           TONY_INTEGRATION: "1"
         run: bun test packages/eval/test/integration
 
+
+  # The Tony app: opencode's desktop app at the pinned version + Tony's patches and brain (packages/desktop).
+  app:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: bun install --frozen-lockfile
+      - name: Build the Tony app
+        run: bun run --cwd packages/desktop build
+      - name: Use the app's bundled engine for the checks
+        shell: bash
+        run: echo "TONY_OPENCODE_BIN=$(node -p 'require("./packages/desktop/.build/app.json").engine')" >> "$GITHUB_ENV"
+      - name: Tony's features against the app's engine (real opencode + scripted model)
+        shell: bash
+        env:
+          TONY_INTEGRATION: "1"
+        run: bun test packages/eval/test/integration
+      - name: Launch the app; its own engine runs with Tony active
+        shell: bash
+        env:
+          TONY_APP: "1"
+        run: |
+          if [ "$RUNNER_OS" = "Linux" ]; then xvfb-run -a bun test packages/desktop/test/app.test.ts
+          else bun test packages/desktop/test/app.test.ts; fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tony-${{ runner.os }}-${{ runner.arch }}
+          path: packages/desktop/.build/tony-*.tar
+          if-no-files-found: error
