@@ -91,7 +91,7 @@ describe.skipIf(!enabled)("Tony app", () => {
     await quit()
     // XDG_CONFIG_HOME is <root>/config under a test root, so this is the user's opencode config folder.
     mkdirSync(join(root, "config", "opencode"), { recursive: true })
-    writeFileSync(join(root, "config", "opencode", "tony.json"), JSON.stringify({ gate: { judge: true } }))
+    writeFileSync(join(root, "config", "opencode", "tony.json"), JSON.stringify({ gate: { maxRounds: 2 } }))
     const { service: after, tony } = await launch((pid) => pid !== before)
     expect(after.pid).not.toBe(before)
     expect(tony?.state.status).toBe("active")

@@ -1,40 +1,33 @@
 import type { Host } from "../../host.ts"
 import type { TonyOptions } from "../../options.ts"
-import { selectTier, type TierId } from "../../tiers/index.ts"
 import { detectChecks } from "../verify/detect.ts"
-import { assemblePrompt } from "./select.ts"
+import { promptAddition } from "./text.ts"
 
 /**
- * Replaces opencode's base prompt (system[0]) on primary requests with the core prompt plus the model's tier text;
- * agents with their own prompt keep it. Records each session's tier in `tiers`.
+ * Appends Tony's short addition to opencode's base prompt (system[0]) on primary requests, keeping opencode's own
+ * per-model prompt and tool guidance. Agents with their own prompt are left alone.
  */
-export async function registerPrompt(
-  host: Host,
-  o: TonyOptions,
-  tiers: Map<string, TierId>,
-  detect: (dir: string) => string[] = detectChecks,
-): Promise<void> {
+export async function registerPrompt(host: Host, o: TonyOptions, detect: (dir: string) => string[] = detectChecks): Promise<void> {
   if (!o.prompt.enabled) return
-  // Detected once per session: the prompt must not change between requests, or the prompt cache misses.
-  const checks = new Map<string, string[]>()
-  const checksFor = async (sessionID: string) => {
-    let c = checks.get(sessionID)
-    if (!c) {
+  // Built once per session: the text must not change between requests, or the prompt cache misses.
+  const additions = new Map<string, string>()
+  const additionFor = async (sessionID: string) => {
+    let a = additions.get(sessionID)
+    if (a === undefined) {
+      let checks: string[]
       try {
-        c = o.gate.checks.length > 0 ? o.gate.checks : detect((await host.sessionInfo(sessionID)).directory)
+        checks = o.gate.checks.length > 0 ? o.gate.checks : detect((await host.sessionInfo(sessionID)).directory)
       } catch {
-        c = []
+        checks = []
       }
-      checks.set(sessionID, c)
+      additions.set(sessionID, (a = promptAddition(checks)))
     }
-    return c
+    return a
   }
   await host.onContext(async (e) => {
     const first = e.system[0]
     if (!first) return
     if (await host.agentHasCustomSystem(e.agent)) return
-    const tier = selectTier(e.model, o)
-    tiers.set(e.sessionID, tier.id)
-    e.system[0] = { ...first, text: assemblePrompt(Object.keys(e.tools), tier, await checksFor(e.sessionID)) }
+    e.system[0] = { ...first, text: `${first.text}\n\n${await additionFor(e.sessionID)}` }
   })
 }

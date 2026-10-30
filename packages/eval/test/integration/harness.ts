@@ -51,8 +51,6 @@ export async function runScripted(opts: { script: Step[]; repo: Record<string, s
   }
   if (opts.tony) {
     config.plugins = [{ package: PLUGIN, options: opts.options ?? {} }]
-    // As in config/opencode.json: the todo tool is opt-in in opencode.
-    config.experimental = { todo: true }
   }
   writeFileSync(join(workspace, "opencode.json"), JSON.stringify(config))
   const configHome = join(scratch, "config")

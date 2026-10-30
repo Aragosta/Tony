@@ -1,136 +1,59 @@
 import { expect, test } from "bun:test"
-import type { TurnEvidence } from "../src/core/gate/evidence.ts"
-import { announcesAction, decide, type GateInput } from "../src/core/gate/decide.ts"
-import { checksSection } from "../src/core/gate/text.ts"
+import { decide, reportsBlocked, type GateInput } from "../src/core/gate/decide.ts"
 
-const evidence = (over: Partial<TurnEvidence> = {}): TurnEvidence => ({
-  changedFiles: ["a.ts"],
-  changeSeq: 1,
-  openTodos: [],
-  testTampering: [],
-  passedChecks: [],
-  refusedEdits: [],
-  fallbacks: [],
-  ...over,
-})
 const input = (over: Partial<GateInput> = {}): GateInput => ({
-  evidence: evidence(),
   checks: [],
-  checksDetected: true,
   finalText: "Done.",
+  changedFiles: 1,
   rounds: 0,
   seen: new Set(),
   maxRounds: 3,
   ...over,
 })
-const failing = [{ command: "bun test", ok: false, output: "1 fail" }]
+const failing = [{ command: "bun test", ok: false, output: "1 fail: parse" }]
 
-test("failing check continues with output", () => {
+test("failing check continues with its output", () => {
   const d = decide(input({ checks: failing }))
   expect(d.kind).toBe("continue")
   if (d.kind !== "continue") return
-  expect(d.message).toContain("The project's checks fail:")
-  expect(d.message).toContain("1 fail")
+  expect(d.message).toContain("1 fail: parse")
+  expect(d.message).toContain('<check command="bun test">')
   expect(d.description).toBe("Tony: checks failing")
 })
 
-test("several reasons in one message", () => {
-  const d = decide(input({ checks: failing, evidence: evidence({ openTodos: ["x"] }) }))
-  expect(d.kind).toBe("continue")
-  if (d.kind !== "continue") return
-  expect(d.keys).toHaveLength(2)
-  expect(d.description).toBe("Tony: checks failing, open todos")
+test("blocked answer with failing checks stops as needs-user", () => {
+  expect(decide(input({ checks: failing, finalText: "Blocked: STATUS_URL is not set" }))).toEqual({ kind: "stop", status: "needs-user", pending: [] })
 })
 
-test("seen reasons are not repeated", () => {
-  expect(decide(input({ checks: failing, seen: new Set(["checks:bun test"]) }))).toEqual({
+test("same failure after the cap is unresolved", () => {
+  expect(decide(input({ checks: failing, rounds: 3 }))).toEqual({ kind: "stop", status: "unresolved", pending: ["checks:bun test"] })
+})
+
+test("the same failure is sent back only once", () => {
+  const first = decide(input({ checks: failing }))
+  if (first.kind !== "continue") throw new Error("expected continue")
+  expect(decide(input({ checks: failing, rounds: 1, seen: new Set(first.keys) })).kind).toBe("stop")
+})
+
+test("announced steps no longer continue", () => {
+  expect(decide(input({ checks: [{ command: "bun test", ok: true, output: "" }], finalText: "Let me run the tests." }))).toEqual({
     kind: "stop",
-    status: "unresolved",
-    pending: ["checks:bun test"],
+    status: "verified",
+    pending: [],
   })
 })
 
-test("round cap stops", () => {
-  expect(decide(input({ checks: failing, rounds: 3 }))).toMatchObject({ kind: "stop", status: "unresolved" })
+test("skipped checks are neither pass nor fail", () => {
+  expect(decide(input({ checks: [{ command: "bun test", ok: false, output: "", skipped: true }] })).kind).toBe("stop")
+  expect(decide(input({ checks: [{ command: "bun test", ok: false, output: "", skipped: true }] }))).toMatchObject({ status: "no-checks" })
 })
 
-test("verified", () => {
-  expect(decide(input({ checks: [{ command: "bun test", ok: true, output: "" }] }))).toEqual({ kind: "stop", status: "verified", pending: [] })
+test("no changes, no checks", () => {
+  expect(decide(input({ changedFiles: 0 }))).toMatchObject({ status: "no-changes" })
+  expect(decide(input())).toMatchObject({ status: "no-checks" })
 })
 
-test("no changes", () => {
-  expect(decide(input({ evidence: evidence({ changedFiles: [], changeSeq: 0 }) }))).toMatchObject({ status: "no-changes" })
-})
-
-test("no checks detected", () => {
-  expect(decide(input({ checksDetected: false }))).toMatchObject({ kind: "stop", status: "no-checks" })
-})
-
-test("skipped checks don't fail", () => {
-  expect(decide(input({ checks: [{ command: "bun test", ok: false, output: "", skipped: true }] }))).toMatchObject({ kind: "stop" })
-})
-
-test("announcement", () => {
-  expect(announcesAction("I fixed it. Let me run the tests.")).toBe(true)
-  expect(announcesAction("Next, I'll update the README:")).toBe(true)
-  expect(announcesAction("All tests pass.")).toBe(false)
-})
-
-test("let me know is not an announcement", () => {
-  expect(announcesAction("Done. Let me know if you need anything else.")).toBe(false)
-})
-
-test("closing lines are not announcements", () => {
-  for (const text of ["I'll leave the deployment to you.", "Done. I will be here if you need more changes.", "Tests pass. I'll wait for your feedback.", "I'll stop here: the remaining step needs your API key.", "Feel free to ask. I'm happy to help further."])
-    expect([text, announcesAction(text)]).toEqual([text, false])
-  expect(announcesAction("Added the flag. Next I'll update the README and add a test.")).toBe(true)
-  expect(announcesAction("Now let me check the other callers.")).toBe(true)
-})
-
-test("same failing call is one reason, whatever its output", () => {
-  const f = (summary: string) => evidence({ lastFailure: { tool: "shell", summary, key: "shell:bun test" } })
-  const d = decide(input({ evidence: f("out 1") }))
-  if (d.kind !== "continue") throw new Error("expected continue")
-  expect(decide(input({ evidence: f("out 2"), seen: new Set(d.keys) })).kind).toBe("stop")
-})
-
-test("failing checks may be unrelated to the change", () => {
-  expect(checksSection("bun test", "1 fail")).toContain("was there before, say so")
-})
-
-test("refused edits that were never redone send the agent back", () => {
-  const d = decide(input({ evidence: evidence({ refusedEdits: [{ path: "test/a.test.ts", message: "Edit refused: read it first" }] }) }))
-  expect(d).toMatchObject({ kind: "continue", keys: ["refused:test/a.test.ts"] })
-  expect(d.kind === "continue" && d.message).toContain("test/a.test.ts: Edit refused: read it first")
-  expect(d.kind === "continue" && d.description).toBe("Tony: edits refused")
-})
-
-test("a Blocked: answer ends as needs-user without nudging about the failures it reports", () => {
-  const failure = { tool: "shell", summary: "`bun test` exited with code 1", key: "k" }
-  for (const finalText of ["Blocked: STATUS_URL is not set, so the test can't reach the service.", "**Blocked:** no STATUS_URL"]) {
-    const d = decide(input({ finalText, checks: failing, evidence: evidence({ lastFailure: failure, openTodos: ["make test pass"] }) }))
-    expect(d).toEqual({ kind: "stop", status: "needs-user", pending: [] })
-  }
-})
-
-test("Blocked: does not hide a stubbed test or an added fallback", () => {
-  const d = decide(input({ finalText: "Blocked: no STATUS_URL", evidence: evidence({ testTampering: ["test/api.test.ts: 2 mock(s) or stub(s) added"] }) }))
-  expect(d.kind).toBe("continue")
-  const f = decide(input({ finalText: "Blocked: no STATUS_URL", evidence: evidence({ fallbacks: ["src/api.ts: default added for missing setting STATUS_URL"] }) }))
-  expect(f.kind).toBe("continue")
-  if (f.kind !== "continue") return
-  expect(f.message).toContain("default added for missing setting STATUS_URL")
-  expect(f.message).toContain("Blocked:")
-  expect(f.description).toBe("Tony: code made to succeed without its inputs")
-})
-
-test("a reply that mentions being blocked later is not a Blocked: answer", () => {
-  expect(decide(input({ finalText: "Fixed it. I was blocked: earlier by a typo.", checks: failing })).kind).toBe("continue")
-})
-
-test("the nudge footer points to the Blocked: exit", () => {
-  const d = decide(input({ checks: failing }))
-  if (d.kind !== "continue") throw new Error("expected continue")
-  expect(d.message).toContain("start your answer with `Blocked:`")
-  expect(d.message).toContain("Pick up where you left off")
+test("blocked spellings", () => {
+  for (const t of ["Blocked: x", "**Blocked:** x", "## Blocked: x", "  blocked : x"]) expect(reportsBlocked(t)).toBe(true)
+  expect(reportsBlocked("Not blocked: x")).toBe(false)
 })

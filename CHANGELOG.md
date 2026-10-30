@@ -1,6 +1,13 @@
 # Changelog
 
 ## Unreleased
+- **Back to basics.** Tony keeps the four rules with evidence behind them: the loop guard, the local context cap, a completion gate that sends failing checks back (and stops on `Blocked:`), and a short prompt addition. Removed, because they cost steps or were never shown to help ([docs/research/back-to-basics.md](docs/research/back-to-basics.md)):
+  - Tony's replacement system prompt and the model tiers: opencode's own prompt is kept and Tony appends ~120 words. The replacement cost +34% steps.
+  - The edit guard: each refusal cost a read and a retry.
+  - Diagnostics after edits: ran whole-project `tsc` twice per edit, never exercised by the eval.
+  - The judge, and the gate's tamper, fallback, removed-`throw`, failed-last-command, open-todo and announced-step reasons: each was written from one trace, without a measured effect.
+  - Check reuse, and the `todo` tool in the default config.
+  - Old `tony.json` keys for these are ignored.
 - **Tony is an app now.** Tony ships as opencode's desktop app with Tony's brain built in, instead of a plugin you add to opencode. The npm package `@aragosta/tony`, `bun run setup` and the per-OS plugin install steps are removed. The brain and all its features are unchanged.
 - Tony's options now go in `tony.json` next to your opencode config. If you added the 1.0.0 plugin to your opencode config, remove that entry.
 - Tony runs its own background engine, with its own sessions. opencode's phone pairing is off in Tony for now.

@@ -1,19 +1,13 @@
 import type { Host, IdleEvent } from "../../host.ts"
 import type { GateOptions } from "../../options.ts"
 import type { Exec } from "../verify/exec.ts"
-import { decide, type CheckRun, type GateStatus } from "./decide.ts"
-import { checkAliases } from "../verify/detect.ts"
-import type { TierId } from "../../tiers/types.ts"
-import type { EvidenceTracker } from "./evidence.ts"
-import { judgeMessage, judgePrompt, parseVerdict } from "./judge.ts"
-import { writeStatus, type StatusRecord } from "./status.ts"
+import { ChangeTracker } from "./changes.ts"
+import { decide, type CheckRun } from "./decide.ts"
+import { writeStatus } from "./status.ts"
 
 export interface GateDeps {
   exec: Exec
   detect: (dir: string) => string[]
-  tracker: EvidenceTracker
-  /** Tier per session, as the prompt module recorded it. */
-  tiers?: ReadonlyMap<string, TierId>
 }
 
 interface GateState {
@@ -23,18 +17,11 @@ interface GateState {
   checkedSeq: number
 }
 
-/**
- * Runs the checks in order within one time budget; stops at the first failure or timeout. A check the agent already
- * passed after its last change (`passed`, normalized) is not run again.
- */
-async function runChecks(exec: Exec, commands: readonly string[], dir: string, budgetMs: number, passed: readonly string[]): Promise<CheckRun[]> {
+/** Runs the checks in order within one time budget; stops at the first failure or timeout. */
+async function runChecks(exec: Exec, commands: readonly string[], dir: string, budgetMs: number): Promise<CheckRun[]> {
   const deadline = Date.now() + budgetMs
   const runs: CheckRun[] = []
   for (const command of commands) {
-    if (checkAliases(command, dir).some((a) => passed.includes(a))) {
-      runs.push({ command, ok: true, output: "", reused: true })
-      continue
-    }
     const left = deadline - Date.now()
     if (left <= 0) {
       runs.push({ command, ok: false, output: "", skipped: true })
@@ -52,12 +39,12 @@ async function runChecks(exec: Exec, commands: readonly string[], dir: string, b
 }
 
 /**
- * Completion gate: when a root session would go idle, check the evidence (project checks after the last change,
- * the last failed action, changed tests, open todos, an announced next step) and send the agent back with what is
- * wrong. Bounded per user prompt; a failure inside the gate lets the agent stop.
+ * Completion gate: when a root session would go idle after changing files, run the project's checks and send the
+ * agent back with the output if they fail. Bounded per user prompt; a failure inside the gate lets the agent stop.
  */
 export async function registerGate(host: Host, opts: GateOptions, deps: GateDeps): Promise<void> {
   if (!opts.enabled) return
+  const tracker = new ChangeTracker()
   const states = new Map<string, GateState>()
   const state = (sessionID: string) => {
     let s = states.get(sessionID)
@@ -73,25 +60,20 @@ export async function registerGate(host: Host, opts: GateOptions, deps: GateDeps
   }
 
   await host.onPrompt((e) => {
-    deps.tracker.beginTurn(e.sessionID)
+    tracker.beginTurn(e.sessionID)
     states.delete(e.sessionID)
   })
-  // Evidence hooks must never reject a tool call.
-  await host.onToolBefore(async (e) => {
-    try {
-      await deps.tracker.before(e, await directory(e.sessionID))
-    } catch {}
-  })
+  // Tracking must never reject a tool call.
   await host.onToolAfter(async (e) => {
     try {
-      deps.tracker.after(e, await directory(e.sessionID))
+      tracker.after(e, await directory(e.sessionID))
     } catch {}
   })
 
   const idle = async (e: IdleEvent) => {
     const info = await host.sessionInfo(e.sessionID)
     if (info.parentID) return
-    // That work wakes the session again when it finishes; judge then.
+    // That work wakes the session again when it finishes; check then.
     if (e.background.some((b) => b.sessionID === e.sessionID && (b.kind === "shell" || b.kind === "subagent"))) return
     const st = state(e.sessionID)
 
@@ -100,26 +82,24 @@ export async function registerGate(host: Host, opts: GateOptions, deps: GateDeps
     messages.forEach((m, i) => {
       if (m.type === "user") start = i + 1
     })
-    const turn = messages.slice(start)
     let finalText = ""
-    for (const m of turn) {
+    for (const m of messages.slice(start)) {
       if (m.type !== "assistant") continue
-      deps.tracker.addSnapshotFiles(e.sessionID, m.files)
+      tracker.addSnapshotFiles(e.sessionID, m.files)
       finalText = m.text
     }
 
-    const evidence = await deps.tracker.evidence(e.sessionID, info.directory)
+    const changes = tracker.changes(e.sessionID)
     const commands = opts.checks.length > 0 ? opts.checks : deps.detect(info.directory)
-    if (commands.length > 0 && evidence.changeSeq > st.checkedSeq) {
-      st.checks = await runChecks(deps.exec, commands, info.directory, opts.checkTimeoutMs, evidence.passedChecks)
-      st.checkedSeq = evidence.changeSeq
+    if (commands.length > 0 && changes.seq > st.checkedSeq) {
+      st.checks = await runChecks(deps.exec, commands, info.directory, opts.checkTimeoutMs)
+      st.checkedSeq = changes.seq
     }
 
     const decision = decide({
-      evidence,
       checks: st.checks,
-      checksDetected: commands.length > 0,
       finalText,
+      changedFiles: changes.files.length,
       rounds: st.rounds,
       seen: st.seen,
       maxRounds: opts.maxRounds,
@@ -130,37 +110,12 @@ export async function registerGate(host: Host, opts: GateOptions, deps: GateDeps
       await host.continueWith(e.sessionID, decision.message, decision.description)
       return
     }
-
-    let status: GateStatus = decision.status
-    let pending = decision.pending
-    let judge: StatusRecord["judge"]
-    // A blocked report already says the work isn't done; the judge has nothing to add.
-    if (opts.judge && status !== "needs-user" && pending.length === 0 && evidence.changedFiles.length > 0) {
-      const verdict = parseVerdict(await host.judge(e.sessionID, judgePrompt(st.checks)))
-      judge = verdict?.verdict ?? "invalid"
-      if (verdict?.verdict === "continue") {
-        const key = `judge:${verdict.reason}`
-        if (st.rounds < opts.maxRounds && !st.seen.has(key)) {
-          st.rounds++
-          st.seen.add(key)
-          await host.continueWith(e.sessionID, judgeMessage(verdict), "Tony: reviewer found gaps")
-          return
-        }
-        status = "unresolved"
-        pending = [key]
-      }
-      if (verdict?.verdict === "blocked") status = "needs-user"
-    }
-
     writeStatus({
       sessionID: e.sessionID,
-      status,
+      status: decision.status,
       rounds: st.rounds,
-      checks: st.checks.map((c) => ({ command: c.command, ok: c.ok, ...(c.skipped ? { skipped: true } : {}), ...(c.reused ? { reused: true } : {}) })),
-      pending,
-      testsChanged: evidence.testTampering,
-      ...(deps.tiers?.get(e.sessionID) ? { tier: deps.tiers.get(e.sessionID)! } : {}),
-      ...(judge ? { judge } : {}),
+      checks: st.checks.map((c) => ({ command: c.command, ok: c.ok, ...(c.skipped ? { skipped: true } : {}) })),
+      pending: decision.pending,
     })
   }
 

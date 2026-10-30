@@ -5,12 +5,8 @@ export interface StatusRecord {
   sessionID: string
   status: GateStatus
   rounds: number
-  checks: { command: string; ok: boolean; skipped?: boolean; reused?: boolean }[]
+  checks: { command: string; ok: boolean; skipped?: boolean }[]
   pending: string[]
-  testsChanged: string[]
-  judge?: "done" | "continue" | "blocked" | "invalid"
-  /** The model tier the session ran with (src/tiers). */
-  tier?: string
 }
 
 /** Appends one JSON line to $TONY_STATUS_FILE when it is set (the eval sets it). Never throws. */

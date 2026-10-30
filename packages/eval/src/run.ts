@@ -15,10 +15,6 @@ export interface GateRecord {
   rounds: number
   checks: { command: string; ok: boolean; skipped?: boolean }[]
   pending: string[]
-  testsChanged: string[]
-  judge?: "done" | "continue" | "blocked" | "invalid"
-  /** Tony's model tier for the session (`small`, `frontier`). */
-  tier?: string
 }
 
 export interface RunOptions {

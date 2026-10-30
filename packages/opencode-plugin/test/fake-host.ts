@@ -26,8 +26,6 @@ export function createFakeHost() {
   const sessions = new Map<string, SessionInfo>()
   const transcripts = new Map<string, TranscriptMessage[]>()
   const continued: { sessionID: string; text: string; description: string }[] = []
-  const judgeReplies: string[] = []
-  const judgePrompts: string[] = []
   const appended: string[] = []
   /** child sessionID -> parent sessionID */
   const parents = new Map<string, string>()
@@ -71,10 +69,6 @@ export function createFakeHost() {
     async continueWith(sessionID, text, description) {
       continued.push({ sessionID, text, description })
     },
-    async judge(_sessionID, prompt) {
-      judgePrompts.push(prompt)
-      return judgeReplies.shift() ?? ""
-    },
     async onModels(p) {
       plan = p
     },
@@ -88,8 +82,6 @@ export function createFakeHost() {
     sessions,
     transcripts,
     continued,
-    judgeReplies,
-    judgePrompts,
     appended,
     async idle(sessionID: string, background: IdleBackground[] = []) {
       for (const cb of idleCbs) await cb({ sessionID, background })

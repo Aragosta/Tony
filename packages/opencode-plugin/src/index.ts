@@ -103,9 +103,6 @@ export function createHost(ctx: PluginContext): Host {
     async continueWith(sessionID, text, description) {
       await ctx.session.synthetic({ sessionID, text, description, metadata: { source: "tony-gate" } })
     },
-    async judge(sessionID, prompt) {
-      return (await ctx.session.generate({ sessionID, prompt })).text
-    },
     async onModels(plan) {
       await ctx.model.transform((models) => {
         const caps = plan(

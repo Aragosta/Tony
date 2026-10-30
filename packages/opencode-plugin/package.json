@@ -2,7 +2,7 @@
   "name": "@aragosta/tony",
   "version": "1.0.0",
   "private": true,
-  "description": "Tony's brain: the opencode plugin the Tony app loads. Completion gate, loop guard, edit guard, diagnostics and system prompt.",
+  "description": "Tony's brain: the opencode plugin the Tony app loads. Completion gate, loop guard, local context cap and a short prompt addition.",
   "license": "MIT",
   "type": "module",
   "exports": {

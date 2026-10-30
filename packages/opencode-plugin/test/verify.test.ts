@@ -2,7 +2,7 @@ import { expect, test } from "bun:test"
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { checkAliases, detectChecks } from "../src/core/verify/detect.ts"
+import { detectChecks } from "../src/core/verify/detect.ts"
 import { exec } from "../src/core/verify/exec.ts"
 
 const dir = (files: Record<string, string> = {}) => {
@@ -62,12 +62,4 @@ test("scripts that rewrite files or watch are not run", () => {
   const d = dir()
   writeFileSync(join(d, "package.json"), JSON.stringify({ scripts: { typecheck: "tsc", lint: "eslint --fix .", test: "vitest --watch" } }))
   expect(detectChecks(d)).toEqual(["npm run typecheck"])
-})
-
-test("a script check is also covered by running the script's body", () => {
-  const dir = mkdtempSync(join(tmpdir(), "tony-alias-"))
-  writeFileSync(join(dir, "package.json"), JSON.stringify({ scripts: { test: "bun  test", lint: "eslint ." } }))
-  expect(checkAliases("npm run test", dir)).toEqual(["run test", "bun test"])
-  expect(checkAliases("cargo test --quiet", dir)).toEqual(["cargo test --quiet"])
-  expect(checkAliases("npm run missing", dir)).toEqual(["run missing"])
 })

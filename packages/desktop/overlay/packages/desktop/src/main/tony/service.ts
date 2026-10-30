@@ -38,7 +38,7 @@ export function registration() {
 
 export const args = ["--port", String(PORT)]
 
-/** Tony's options from tony.json next to the user's opencode config, for example {"gate": {"judge": true}}. */
+/** Tony's options from tony.json next to the user's opencode config, for example {"gate": {"maxRounds": 2}}. */
 function userOptions() {
   const dir = process.env.OPENCODE_CONFIG_DIR ?? path.join(process.env.XDG_CONFIG_HOME ?? path.join(homedir(), ".config"), "opencode")
   const options = readJson(path.join(dir, "tony.json"))

@@ -54,7 +54,6 @@ const gate = (status: "verified" | "unresolved" | "needs-user", pending: string[
   rounds: 1,
   checks: [],
   pending,
-  testsChanged: [],
 })
 
 test("gate scorecard: misses and false alarms", () => {
@@ -80,7 +79,7 @@ test("markdown shows the failed check and the gate's open reason", () => {
   ]
   const md = toMarkdown(summarize(rs), rs)
   expect(md).toContain("| answer names the blocker |")
-  expect(md).toContain("| t | tony | - | no |")
+  expect(md).toContain("| t | tony | no |")
   expect(md).toContain('| failure:shell:{"command":"npx tsx test/… +1 |')
 })
 
@@ -99,7 +98,7 @@ test("preflight aborts", async () => {
 test("toMarkdown", () => {
   const md = toMarkdown(summarize(results), results)
   expect(md).toContain("| variant | pass rate | false done | avg steps | s/step | loop runs | blocked | gate rounds | gate miss | gate false alarm | errors | cache hit |")
-  for (const r of results) expect(md).toContain(`| ${r.taskId} | ${r.variant} | - |`)
+  for (const r of results) expect(md).toContain(`| ${r.taskId} | ${r.variant} | ${r.passed ? "yes" : "no"} |`)
 })
 
 test("false done", () => {
@@ -117,7 +116,7 @@ test("errors counted", () => {
 })
 
 test("gate outcomes summarized", () => {
-  const gate = (status: "verified" | "unresolved", rounds: number) => ({ sessionID: "s", status, rounds, checks: [], pending: [], testsChanged: [] })
+  const gate = (status: "verified" | "unresolved", rounds: number) => ({ sessionID: "s", status, rounds, checks: [], pending: [] })
   const s = summarize([result({ variant: "tony", gate: gate("verified", 0) }), result({ variant: "tony", gate: gate("unresolved", 2) })])
   expect(s[0]!.verifiedRuns).toBe(1)
   expect(s[0]!.avgGateRounds).toBe(1)

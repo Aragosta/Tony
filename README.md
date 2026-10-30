@@ -2,20 +2,10 @@
 
 A coding agent app for **macOS and Windows** that makes models, including small local ones, finish tasks correctly and efficiently. Tony is [opencode](https://github.com/anomalyco/opencode)'s desktop app and engine with Tony's brain built in: the same screens, plus the features below, always on. How the pieces fit and how opencode updates come in: [docs/architecture.md](docs/architecture.md).
 
-What Tony adds to plain opencode:
-- **Completion gate.** opencode treats "the model stopped talking" as done; Tony checks the evidence first. When the agent stops after changing files, Tony runs the project's checks: `typecheck`, `lint` and `test` scripts, `cargo test`, `go test`, `pytest` or `make test`, detected automatically. It sends the agent back, with the reason, when:
-  - a check fails;
-  - its last test or build command failed;
-  - an edit was refused and never redone;
-  - it weakened existing tests;
-  - todos are still open;
-  - it ended by announcing a step it didn't take.
-
-  Bounded to 3 rounds per request. A check the agent already passed as its latest action isn't run twice.
+What Tony adds to plain opencode, kept to the parts with evidence behind them ([docs/research/back-to-basics.md](docs/research/back-to-basics.md)):
+- **Completion gate.** opencode treats "the model stopped talking" as done. When the agent stops after changing files, Tony runs the project's checks: `typecheck`, `lint` and `test` scripts, `cargo test`, `go test`, `pytest` or `make test`, detected automatically. If one fails, Tony sends the agent back with the output. An answer that starts with `Blocked:` (something outside the code is missing) is not sent back. Bounded to 3 rounds per request.
 - **Loop guard.** The 3rd identical tool call in a row is rejected, and the model gets the earlier result back. The 5th pauses the session so you can steer.
-- **Edit guard.** Edits to files the agent hasn't read, or that changed since, are refused.
-- **Diagnostics.** New compiler or lint errors (tsc, ruff, go vet) are shown right after each edit.
-- **Tony's system prompt.** Replaces opencode's 111-word default: verify before finishing, check every part of the request, stop after repeated failures, ask before destructive actions. Local models get extra rules.
+- **A short prompt addition.** About 120 words appended to opencode's own prompt, which stays as is: read before editing, run the project's checks (named), never fake a pass, say `Blocked:` when something is missing. The same text on every request, so the prompt cache keeps working.
 - **Local context sync.** Local models are capped at a 128k window, so compaction starts before the server truncates the prompt.
 
 ## Get Tony
@@ -27,14 +17,14 @@ The app lands in `packages/desktop/.build/opencode/packages/desktop/dist/`. The 
 - **macOS:** open it once, then **System Settings → Privacy & Security → Open Anyway**. Or run `xattr -dr com.apple.quarantine /Applications/Tony.app` once.
 - **Windows:** **More info**, then **Run anyway**.
 
-Tony uses your opencode config (`~/.config/opencode/opencode.json`; on Windows `C:\Users\<you>\.config\opencode\opencode.json`) for models, providers and MCP servers. Tony's own defaults (todo list, background compaction, step caps, read-only `explore`) win over the same keys in your config or a project's. Tony keeps its own sessions and its own background engine, separate from a plain opencode on the same computer. opencode's phone pairing (remote access) is off in Tony for now. To check Tony is active, ask "What's your name?" It answers "Tony". When the completion gate sends the agent back, you see a `Tony: …` row in the session.
+Tony uses your opencode config (`~/.config/opencode/opencode.json`; on Windows `C:\Users\<you>\.config\opencode\opencode.json`) for models, providers and MCP servers. Tony's own defaults (background compaction, step caps, read-only `explore`) win over the same keys in your config or a project's. Tony keeps its own sessions and its own background engine, separate from a plain opencode on the same computer. opencode's phone pairing (remote access) is off in Tony for now. To check Tony is active, ask "What's your name?" It answers "Tony". When the completion gate sends the agent back, you see a `Tony: …` row in the session.
 
 The npm package and `bun run setup` from 1.0.0 are gone; Tony is no longer installed into an existing opencode. If you added the 1.0.0 plugin to your opencode config, remove that entry (`@aragosta/tony` or a path ending in `packages/opencode-plugin`). Otherwise two copies of Tony load and opencode keeps only one, possibly the old one. How the app is put together: [packages/desktop/README.md](packages/desktop/README.md).
 
 ## Options
 Put Tony's options in `tony.json` next to your opencode config (`~/.config/opencode/tony.json`; on Windows `C:\Users\<you>\.config\opencode\tony.json`). Then restart Tony; it restarts its engine with the new options.
 ```json
-{ "gate": { "checks": ["npm test"], "judge": true }, "loopGuard": { "blockAt": 4, "stopAt": 6 } }
+{ "gate": { "checks": ["npm test"] }, "loopGuard": { "blockAt": 4, "stopAt": 6 } }
 ```
 Per feature, your keys win over Tony's defaults (`config/opencode.json`).
 
@@ -42,10 +32,11 @@ Per feature, your keys win over Tony's defaults (`config/opencode.json`).
 |---|---|---|
 | `gate.checks` | auto-detect | Commands the gate runs |
 | `gate.maxRounds` | `3` | How many times per request Tony may send the agent back |
-| `gate.judge` | `false` | Adds a reviewer model call that compares the work with your request once the checks pass |
 | `loopGuard.blockAt` / `stopAt` | `3` / `5` | Identical calls before Tony blocks, then pauses |
 | `local.contextLimit` | `131072` | Context window for local providers (`ollama`, `llamacpp`, `lmstudio`, `vllm`, `local`) |
-| `prompt.enabled`, `editGuard.enabled`, `diagnostics.enabled`, `gate.enabled` | `true` | Turn a feature off |
+| `prompt.enabled`, `loopGuard.enabled`, `gate.enabled` | `true` | Turn a feature off |
+
+Options from older versions (`editGuard`, `diagnostics`, `tier`, `gate.judge`) are ignored.
 
 To keep subagents cheap, give `explore` a fast model in the config: `"explore": { "model": "<provider>/<model>", ... }`.
 

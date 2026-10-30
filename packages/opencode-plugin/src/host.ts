@@ -75,8 +75,6 @@ export interface Host {
   transcript(sessionID: string): Promise<TranscriptMessage[]>
   /** Sends the agent back to work with `text`; `description` is the short row the user sees. */
   continueWith(sessionID: string, text: string, description: string): Promise<void>
-  /** A side generation over the session's history, without tools. */
-  judge(sessionID: string, prompt: string): Promise<string>
   /** `plan` sees every available model and returns the context limits to set. */
   onModels(plan: (models: readonly ModelEntry[]) => readonly ContextCap[]): Promise<void>
 }

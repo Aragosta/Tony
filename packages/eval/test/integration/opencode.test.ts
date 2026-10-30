@@ -60,101 +60,6 @@ describe.skipIf(!enabled)("opencode integration", () => {
     expect(r.status.at(-1)?.status).toBe("verified")
   }, 150000)
 
-  // opencode fires no after-hook for a refused call; the gate must still see that the edit never happened.
-  test("a refused edit followed by 'done' is not verified", async () => {
-    const r = await runScripted({
-      repo: REPO,
-      tony: true,
-      script: [
-        { tool: "write", args: { path: "test/a.test.ts", content: "test('x', () => {})\n" } },
-        { text: "Added the test." },
-        { text: "I could not write it." },
-      ],
-    })
-    expect(r.log.some((l) => l.includes("These edits were refused and never made"))).toBe(true)
-    expect(r.status.at(-1)?.status).toBe("unresolved")
-  }, 150000)
-
-  test("checks the agent already passed are not rerun", async () => {
-    const r = await runScripted({
-      repo: REPO,
-      tony: true,
-      script: [
-        { tool: "read", args: { path: "src/a.ts" } },
-        { tool: "write", args: { path: "src/a.ts", content: "export const add = (a: number, b: number) => b + a\n" } },
-        { tool: "shell", args: { command: "bun test" } },
-        { text: "Done; bun test passes." },
-      ],
-    })
-    expect(r.status.at(-1)).toMatchObject({ status: "verified", checks: [{ command: "npm run test", ok: true, reused: true }] })
-  }, 150000)
-
-  test("a shell rewrite after a passing check is not reused", async () => {
-    const r = await runScripted({
-      repo: REPO,
-      tony: true,
-      script: [
-        { tool: "read", args: { path: "src/a.ts" } },
-        { tool: "write", args: { path: "src/a.ts", content: "export const add = (a: number, b: number) => b + a\n" } },
-        { tool: "shell", args: { command: "bun test" } },
-        { tool: "shell", args: { command: "printf 'export const add = (a: number, b: number) => a - b\\n' > src/a.ts" } },
-        { text: "Done." },
-        { text: "I could not fix it." },
-      ],
-    })
-    expect(r.log.some((l) => l.includes("The project's checks fail:"))).toBe(true)
-    expect(r.status.at(-1)?.status).toBe("unresolved")
-  }, 150000)
-
-  test("a pass in another directory is not reused", async () => {
-    const r = await runScripted({
-      repo: { ...REPO, "sub/ok.test.ts": 'import { expect, test } from "bun:test"\ntest("ok", () => expect(1).toBe(1))\n' },
-      tony: true,
-      script: [
-        { tool: "read", args: { path: "src/a.ts" } },
-        { tool: "write", args: { path: "src/a.ts", content: "export const add = (a: number, b: number) => a - b\n" } },
-        { tool: "shell", args: { command: "bun test", workdir: "sub" } },
-        { text: "Done." },
-        { text: "I could not fix it." },
-      ],
-    })
-    expect(r.status.at(-1)?.status).toBe("unresolved")
-  }, 150000)
-
-  test("a refusal followed by an unrelated edit is not verified", async () => {
-    const r = await runScripted({
-      repo: REPO,
-      tony: true,
-      script: [
-        { tool: "write", args: { path: "test/a.test.ts", content: "test('x', () => {})\n" } },
-        { tool: "read", args: { path: "src/a.ts" } },
-        { tool: "write", args: { path: "src/a.ts", content: "export const add = (a: number, b: number) => b + a\n" } },
-        { text: "Updated the test and src/a.ts." },
-        { text: "I could not write the test." },
-      ],
-    })
-    expect(r.log.some((l) => l.includes("These edits were refused and never made"))).toBe(true)
-    expect(r.status.at(-1)?.status).toBe("unresolved")
-  }, 150000)
-
-  test("edit guard", async () => {
-    const r = await runScripted({
-      repo: REPO,
-      tony: true,
-      script: [{ tool: "edit", args: { path: "src/a.ts", oldString: "a + b", newString: "b + a" } }, { text: "Done." }],
-    })
-    expect(r.log.some((l) => l.includes("Edit refused: read src/a.ts"))).toBe(true)
-  }, 150000)
-
-  test("open todos", async () => {
-    const r = await runScripted({
-      repo: REPO,
-      tony: true,
-      script: [{ tool: "todowrite", args: { todos: [{ content: "write docs", status: "pending" }] } }, { text: "Done." }, { text: "Stopping." }],
-    })
-    expect(r.log.some((l) => l.includes("Your todo list has open items:"))).toBe(true)
-  }, 150000)
-
   test("round cap", async () => {
     const r = await runScripted({
       repo: REPO,
@@ -163,17 +68,29 @@ describe.skipIf(!enabled)("opencode integration", () => {
       script: [
         { tool: "read", args: { path: "src/a.ts" } },
         { tool: "write", args: { path: "src/a.ts", content: "export const add = (a: number, b: number) => a - b\n" } },
-        { tool: "todowrite", args: { todos: [{ content: "write docs", status: "pending" }] } },
         { text: "Done." },
-        // A fresh reason (tests changed) that only the cap keeps from being sent.
-        { tool: "read", args: { path: "test/a.test.ts" } },
-        { tool: "write", args: { path: "test/a.test.ts", content: 'import { test } from "bun:test"\ntest("add", () => {})\n' } },
+        // A new failure that only the cap keeps from being sent.
+        { tool: "write", args: { path: "src/a.ts", content: "export const add = (a: number, b: number) => a * b\n" } },
         { text: "Done." },
       ],
     })
     // The log repeats recent messages per request, so count rounds from the gate's own status.
     expect(r.status.at(-1)?.rounds).toBe(1)
     expect(r.status.at(-1)?.status).toBe("unresolved")
-    expect(r.status.at(-1)?.testsChanged.length).toBeGreaterThan(0)
+  }, 150000)
+
+  test("a blocked answer is not sent back", async () => {
+    const r = await runScripted({
+      repo: REPO,
+      tony: true,
+      script: [
+        { tool: "read", args: { path: "src/a.ts" } },
+        { tool: "write", args: { path: "src/a.ts", content: "export const add = (a: number, b: number) => a - b\n" } },
+        { text: "Blocked: the tests need ADD_SERVICE_URL, which is not set." },
+        { text: "Should not be reached." },
+      ],
+    })
+    expect(count(r.log, GATE_MESSAGE)).toBe(0)
+    expect(r.status.at(-1)?.status).toBe("needs-user")
   }, 150000)
 })
