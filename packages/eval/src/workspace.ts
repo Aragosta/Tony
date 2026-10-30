@@ -5,10 +5,41 @@ import { homedir, tmpdir } from "node:os"
 import { join } from "node:path"
 import type { EvalTask } from "./tasks.ts"
 
-export type Variant = "baseline" | "tony"
+/** A name from `evals/variants.json`. */
+export type Variant = string
+
+/** Tony's plugin options for a variant; `null` means plain opencode. */
+export type VariantOptions = Record<string, unknown> | null
+
+/** Reads `evals/variants.json`: variant name → Tony options, or `null` for plain opencode. */
+export function loadVariants(file: string): Record<string, VariantOptions> {
+  const raw = JSON.parse(readFileSync(file, "utf8"))
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) throw new Error(`${file} must be an object`)
+  for (const [name, v] of Object.entries(raw)) {
+    if (v !== null && (typeof v !== "object" || Array.isArray(v))) throw new Error(`variant ${name} must be null or an object`)
+  }
+  return raw
+}
+
+/**
+ * Resolves `--variant a,b` against the variants file. `both` is kept as an alias for `baseline,tony`. Throws, naming
+ * the known variants, for an unknown name.
+ */
+export function pickVariants(arg: string, known: Record<string, VariantOptions>): { name: Variant; options: VariantOptions }[] {
+  const names = (arg === "both" ? "baseline,tony" : arg).split(",").map((s) => s.trim()).filter(Boolean)
+  return [...new Set(names)].map((name) => {
+    if (!(name in known)) throw new Error(`unknown variant ${name}; known: ${Object.keys(known).join(", ")}`)
+    return { name, options: known[name]! }
+  })
+}
+
+/** Without explicit options, `baseline` is plain opencode and any other name is Tony with its defaults. */
+export const defaultOptions = (variant: Variant): VariantOptions => (variant === "baseline" ? null : {})
 
 export interface ConfigInput {
   variant: Variant
+  /** Defaults to `defaultOptions(variant)`. */
+  options?: VariantOptions
   tonyHome: string
   langfuse: boolean
   tags: string[]
@@ -16,13 +47,18 @@ export interface ConfigInput {
 
 export const LANGFUSE_PACKAGE = "@langfuse/opencode-observability-plugin@0.7.0"
 
-/** baseline = plain opencode; tony = config/opencode.json with the plugin placeholder pointed at this checkout's plugin. */
+/**
+ * `null` options = plain opencode; otherwise config/opencode.json with the plugin placeholder pointed at this checkout's
+ * plugin and the variant's options merged over the template's.
+ */
 export function buildConfig(input: ConfigInput): Record<string, unknown> {
   const config: Record<string, any> = {}
-  if (input.variant === "tony") {
+  const options = input.options === undefined ? defaultOptions(input.variant) : input.options
+  if (options !== null) {
     Object.assign(config, JSON.parse(readFileSync(join(input.tonyHome, "config/opencode.json"), "utf8")))
     // The eval measures the code in this checkout, not the version on npm.
-    config.plugins = [{ ...config.plugins[0], package: join(input.tonyHome, "packages/opencode-plugin") }, ...config.plugins.slice(1)]
+    const first = config.plugins[0]
+    config.plugins = [{ ...first, package: join(input.tonyHome, "packages/opencode-plugin"), options: { ...first.options, ...options } }, ...config.plugins.slice(1)]
   }
   if (input.langfuse) {
     config.plugins = [...(config.plugins ?? []), { package: LANGFUSE_PACKAGE, options: { tags: input.tags } }]

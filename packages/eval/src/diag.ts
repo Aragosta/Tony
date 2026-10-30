@@ -1,6 +1,6 @@
 // Diagnostic runs: each task runs through `opencode run --thinking`, and every run gets a page with its whole path from
 // prompt to answer (thinking, text, each tool call and its result), its findings, and a suite summary of failure modes.
-// Usage: bun packages/eval/src/diag.ts --model <provider/model> [--variant baseline|tony] [--repeat N] [--tasks id,id]
+// Usage: bun packages/eval/src/diag.ts --model <provider/model> [--variant name,name] [--repeat N] [--tasks id,id]
 //          [--suite <dir>] [--opencode <bin>] [--keep]
 //        bun packages/eval/src/diag.ts --replay <results dir>   (rebuild every page from the saved events)
 import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs"
@@ -11,6 +11,7 @@ import { runPage, summaryPage, OUTCOME_LABEL, type RunMeta, type SummaryRow } fr
 import { diagnose } from "./diagnose.ts"
 import { runTask } from "./run.ts"
 import { loadTasks, type EvalTask } from "./tasks.ts"
+import { loadVariants, pickVariants } from "./workspace.ts"
 import { buildTimeline } from "./timeline.ts"
 
 const { values } = parseArgs({
@@ -85,10 +86,16 @@ if (!values.model) {
   console.error("--model is required (or --replay <dir>)")
   process.exit(2)
 }
-const variant = values.variant
+let variants: ReturnType<typeof pickVariants>
+try {
+  variants = pickVariants(values.variant, loadVariants(join(tonyHome, "evals/variants.json")))
+} catch (e) {
+  console.error((e as Error).message)
+  process.exit(2)
+}
 const repeat = Number(values.repeat)
-if ((variant !== "baseline" && variant !== "tony") || !Number.isInteger(repeat) || repeat < 1) {
-  console.error("--variant must be baseline or tony, and --repeat a positive integer")
+if (variants.length === 0 || !Number.isInteger(repeat) || repeat < 1) {
+  console.error("--variant needs at least one name, and --repeat a positive integer")
   process.exit(2)
 }
 
@@ -104,11 +111,14 @@ const stamp = new Date().toISOString().replace(/[:.]/g, "-")
 const dir = join(tonyHome, "evals/diag-results", stamp)
 mkdirSync(dir, { recursive: true })
 const rows: SummaryRow[] = []
+// Variants side by side per task, so an interrupted run still compares them.
+const jobs = tasks.flatMap((task) => variants.map((v) => ({ task, ...v })))
 for (let n = 1; n <= repeat; n++) {
-  for (const task of tasks) {
+  for (const { task, name: variant, options } of jobs) {
     const r = await runTask(task, {
       model: values.model,
       variant,
+      options,
       tonyHome,
       langfuse: false,
       opencodeBin: values.opencode.includes("/") ? resolve(values.opencode) : values.opencode,

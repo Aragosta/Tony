@@ -21,6 +21,8 @@ export interface GateOptions {
   /** Project checks to run; empty means auto-detect. */
   checks: string[]
   checkTimeoutMs: number
+  /** Once per request, send finished work back to be checked against the request (experiment, off by default). */
+  review: boolean
 }
 
 export interface TonyOptions {
@@ -43,7 +45,7 @@ export const DEFAULTS: TonyOptions = {
     providers: ["ollama", "lmstudio", "llamacpp", "vllm", "local"],
     contextLimit: 131072,
   },
-  gate: { enabled: true, maxRounds: 3, checks: [], checkTimeoutMs: 300000 },
+  gate: { enabled: true, maxRounds: 3, checks: [], checkTimeoutMs: 300000, review: false },
 }
 
 function isObject(v: unknown): v is Record<string, unknown> {

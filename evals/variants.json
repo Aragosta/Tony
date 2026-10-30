@@ -1,0 +1,8 @@
+{
+  "baseline": null,
+  "tony": {},
+  "tony-review": { "gate": { "review": true } },
+  "tony-no-prompt": { "prompt": { "enabled": false } },
+  "tony-no-gate": { "gate": { "enabled": false } },
+  "tony-no-loop-guard": { "loopGuard": { "enabled": false } }
+}

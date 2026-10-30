@@ -151,3 +151,25 @@ test("disabled registers nothing", async () => {
   await f.idle("s")
   expect(calls).toEqual([])
 })
+
+test("review: once per request, then verified with reviewed in the status", async () => {
+  const { f, calls } = await setup([{ code: 0 }, { code: 0 }], { review: true })
+  await f.after(edit())
+  await f.idle("s")
+  expect(f.continued.map((c) => c.description)).toEqual(["Tony: review against the request"])
+  expect(f.continued[0]!.text).toContain("<request>\ndo it\n</request>")
+  // The agent added a test during the review: the checks run again, and the gate stops.
+  await f.after(edit("test/new.test.ts"))
+  await f.idle("s")
+  expect(f.continued).toHaveLength(1)
+  expect(calls).toHaveLength(2)
+  expect(statuses().at(-1)).toMatchObject({ status: "verified", reviewed: true })
+})
+
+test("review is off by default", async () => {
+  const { f } = await setup([{ code: 0 }])
+  await f.after(edit())
+  await f.idle("s")
+  expect(f.continued).toEqual([])
+  expect(statuses().at(-1).reviewed).toBeUndefined()
+})

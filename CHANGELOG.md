@@ -8,6 +8,8 @@
   - The judge, and the gate's tamper, fallback, removed-`throw`, failed-last-command, open-todo and announced-step reasons: each was written from one trace, without a measured effect.
   - Check reuse, and the `todo` tool in the default config.
   - Old `tony.json` keys for these are ignored.
+- **Experiment: `gate.review`** (off by default). Once per request, when the work looks done (files changed, no failing check, no `Blocked:`), Tony sends the agent back to list each requirement in the request and the docs it names, show evidence for each, add a test where there is none, and rerun the checks. Targets the failure the first diagnostic runs showed on a local Qwen: green visible tests taken as done (`incomplete-fix` in 6 of 6 failed runs).
+- **Eval: named variants.** `--variant` takes names from `evals/variants.json` (`baseline`, `tony`, `tony-review`, `tony-no-gate`, …), in `cli.ts` and `diag.ts`.
 - **Eval: diagnostic runs.** `bun packages/eval/src/diag.ts` records each run's whole path from prompt to answer (thinking, text, every tool call and result) and writes a page per run plus a failure-mode summary. Five hard tasks in `evals/diag/`, each with hidden grader cases and a reference solution.
 - **Tony is an app now.** Tony ships as opencode's desktop app with Tony's brain built in, instead of a plugin you add to opencode. The npm package `@aragosta/tony`, `bun run setup` and the per-OS plugin install steps are removed. The brain and all its features are unchanged.
 - Tony's options now go in `tony.json` next to your opencode config. If you added the 1.0.0 plugin to your opencode config, remove that entry.

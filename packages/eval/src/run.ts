@@ -6,7 +6,7 @@ import { join } from "node:path"
 import { parseEvents, type RunMetrics } from "./events.ts"
 import { opencodeBinary } from "./opencode-bin.ts"
 import type { EvalTask } from "./tasks.ts"
-import { buildConfig, isolatedConfigHome, prepareWorkspace, type Variant } from "./workspace.ts"
+import { buildConfig, isolatedConfigHome, prepareWorkspace, type Variant, type VariantOptions } from "./workspace.ts"
 
 /** One completion-gate status line from the Tony plugin (same shape as its StatusRecord). */
 export interface GateRecord {
@@ -15,11 +15,15 @@ export interface GateRecord {
   rounds: number
   checks: { command: string; ok: boolean; skipped?: boolean }[]
   pending: string[]
+  /** The review (`gate.review`) was sent. */
+  reviewed?: boolean
 }
 
 export interface RunOptions {
   model: string
   variant: Variant
+  /** Tony's options for the variant (`null` = plain opencode); defaults by name, see `defaultOptions`. */
+  options?: VariantOptions
   tonyHome: string
   langfuse: boolean
   opencodeBin: string
@@ -143,6 +147,7 @@ function runOpencode(bin: string, args: string[], cwd: string, extraEnv: Record<
 export async function runTask(task: EvalTask, opts: RunOptions): Promise<RunResult> {
   const config = buildConfig({
     variant: opts.variant,
+    ...(opts.options !== undefined ? { options: opts.options } : {}),
     tonyHome: opts.tonyHome,
     langfuse: opts.langfuse,
     tags: ["tony-eval", opts.variant, task.id],

@@ -7,6 +7,8 @@ export interface StatusRecord {
   rounds: number
   checks: { command: string; ok: boolean; skipped?: boolean }[]
   pending: string[]
+  /** The review (`gate.review`) was sent this request. */
+  reviewed?: boolean
 }
 
 /** Appends one JSON line to $TONY_STATUS_FILE when it is set (the eval sets it). Never throws. */

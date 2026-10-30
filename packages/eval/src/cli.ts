@@ -1,4 +1,4 @@
-// Usage: bun packages/eval/src/cli.ts --model <provider/model> [--variant baseline|tony|both] [--repeat N]
+// Usage: bun packages/eval/src/cli.ts --model <provider/model> [--variant name,name] [--repeat N]
 //          [--tasks id,id] [--langfuse] [--keep] [--opencode <bin>] [--no-preflight]
 import { mkdirSync, writeFileSync } from "node:fs"
 import { join, resolve } from "node:path"
@@ -7,12 +7,12 @@ import { parseArgs } from "node:util"
 import { PREFLIGHT_FAILED, PREFLIGHT_TASK, runPreflight, summarize, toMarkdown } from "./report.ts"
 import { runTask, type RunOptions, type RunResult } from "./run.ts"
 import { loadTasks } from "./tasks.ts"
-import type { Variant } from "./workspace.ts"
+import { loadVariants, pickVariants } from "./workspace.ts"
 
 const { values } = parseArgs({
   options: {
     model: { type: "string" },
-    variant: { type: "string", default: "both" },
+    variant: { type: "string", default: "baseline,tony" },
     repeat: { type: "string", default: "1" },
     tasks: { type: "string" },
     langfuse: { type: "boolean", default: false },
@@ -26,21 +26,26 @@ if (!values.model) {
   console.error("--model is required")
   process.exit(2)
 }
-const variants: Variant[] =
-  values.variant === "both" ? ["baseline", "tony"] : values.variant === "baseline" || values.variant === "tony" ? [values.variant] : []
+const tonyHome = resolve(process.env.TONY_HOME ?? fileURLToPath(new URL("../../../", import.meta.url)))
+let variants: ReturnType<typeof pickVariants>
+try {
+  variants = pickVariants(values.variant, loadVariants(join(tonyHome, "evals/variants.json")))
+} catch (e) {
+  console.error((e as Error).message)
+  process.exit(2)
+}
 const repeat = Number(values.repeat)
 if (variants.length === 0 || !Number.isInteger(repeat) || repeat < 1) {
-  console.error("--variant must be baseline, tony or both, and --repeat a positive integer")
+  console.error("--variant needs at least one name, and --repeat a positive integer")
   process.exit(2)
 }
 
-const tonyHome = resolve(process.env.TONY_HOME ?? fileURLToPath(new URL("../../../", import.meta.url)))
 const tasksRoot = resolve(process.env.TONY_EVAL_TASKS ?? join(tonyHome, "evals/tasks"))
 const allTasks = loadTasks(tasksRoot)
 const only = values.tasks?.split(",").map((s) => s.trim())
 // The preflight task already ran once; it joins the suite only when named.
 const tasks = only ? allTasks.filter((t) => only.includes(t.id)) : allTasks.filter((t) => t.id !== PREFLIGHT_TASK)
-const base: Omit<RunOptions, "variant"> = {
+const base: Omit<RunOptions, "variant" | "options"> = {
   model: values.model,
   tonyHome,
   langfuse: values.langfuse,
@@ -66,8 +71,8 @@ const results: RunResult[] = []
 const save = () => writeFileSync(join(outDir, `${stamp}.json`), JSON.stringify(results, null, 2))
 for (let i = 0; i < repeat; i++) {
   for (const task of tasks) {
-    for (const variant of variants) {
-      const r = await runTask(task, { ...base, variant })
+    for (const { name: variant, options } of variants) {
+      const r = await runTask(task, { ...base, variant, options })
       results.push(r)
       save()
       console.error(`${task.id} [${variant}] ${r.passed ? "pass" : r.timedOut ? "timeout" : "fail"} (${(r.durationMs / 1000).toFixed(1)}s)`)

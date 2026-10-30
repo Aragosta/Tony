@@ -6,7 +6,7 @@ import { join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { runChecks } from "../src/run.ts"
 import { loadTasks } from "../src/tasks.ts"
-import { buildConfig, LANGFUSE_PACKAGE, prepareWorkspace } from "../src/workspace.ts"
+import { buildConfig, LANGFUSE_PACKAGE, loadVariants, pickVariants, prepareWorkspace } from "../src/workspace.ts"
 
 const fixturesTasksDir = fileURLToPath(new URL("./fixtures/tasks", import.meta.url))
 const repoRoot = fileURLToPath(new URL("../../../", import.meta.url)).replace(/\/$/, "")
@@ -72,6 +72,40 @@ describe("buildConfig", () => {
       const c = buildConfig({ variant, tonyHome: repoRoot, langfuse: true, tags: ["tony", "sample"] })
       expect(c.plugins).toContainEqual({ package: LANGFUSE_PACKAGE, options: { tags: ["tony", "sample"] } })
     }
+  })
+})
+
+describe("variants", () => {
+  test("null options are plain opencode", () => {
+    expect(buildConfig({ variant: "x", options: null, tonyHome: repoRoot, langfuse: false, tags: [] })).toEqual({})
+  })
+
+  test("variant options merge into the Tony plugin entry", () => {
+    const c = buildConfig({ variant: "tony-no-gate", options: { gate: { enabled: false } }, tonyHome: repoRoot, langfuse: false, tags: [] }) as any
+    expect(c.plugins[0].options).toEqual({ gate: { enabled: false } })
+    expect(c.plugins[0].package).toEndWith("packages/opencode-plugin")
+  })
+
+  test("evals/variants.json loads; a non-object entry is rejected", () => {
+    const known = loadVariants(join(repoRoot, "evals/variants.json"))
+    expect(known.baseline).toBeNull()
+    expect(known["tony-review"]).toEqual({ gate: { review: true } })
+    const file = join(mkdtempSync(join(tmpdir(), "tony-variants-")), "v.json")
+    writeFileSync(file, JSON.stringify({ x: 3 }))
+    expect(() => loadVariants(file)).toThrow("variant x must be null or an object")
+  })
+
+  test("pickVariants keeps order, accepts both, names the known ones", () => {
+    const known = { baseline: null, tony: {}, "tony-review": { gate: { review: true } } }
+    expect(pickVariants("tony-review,baseline", known).map((v) => v.name)).toEqual(["tony-review", "baseline"])
+    expect(pickVariants("both", known).map((v) => v.name)).toEqual(["baseline", "tony"])
+    expect(() => pickVariants("nope", known)).toThrow("unknown variant nope; known: baseline, tony, tony-review")
+  })
+
+  test("an unknown variant exits 2", () => {
+    const r = spawnSync("bun", [join(repoRoot, "packages/eval/src/cli.ts"), "--model", "x/y", "--variant", "nope", "--no-preflight"], { encoding: "utf8" })
+    expect(r.status).toBe(2)
+    expect(r.stderr).toContain("unknown variant nope; known: baseline, tony")
   })
 })
 

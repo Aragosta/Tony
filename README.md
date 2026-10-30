@@ -32,6 +32,7 @@ Per feature, your keys win over Tony's defaults (`config/opencode.json`).
 |---|---|---|
 | `gate.checks` | auto-detect | Commands the gate runs |
 | `gate.maxRounds` | `3` | How many times per request Tony may send the agent back |
+| `gate.review` | `false` | Experiment: once per request, when the work looks done, send the agent back to check it against your request (each requirement, with evidence), not only against the tests it ran |
 | `loopGuard.blockAt` / `stopAt` | `3` / `5` | Identical calls before Tony blocks, then pauses |
 | `local.contextLimit` | `131072` | Context window for local providers (`ollama`, `llamacpp`, `lmstudio`, `vllm`, `local`) |
 | `prompt.enabled`, `loopGuard.enabled`, `gate.enabled` | `true` | Turn a feature off |

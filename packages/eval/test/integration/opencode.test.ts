@@ -93,4 +93,24 @@ describe.skipIf(!enabled)("opencode integration", () => {
     expect(count(r.log, GATE_MESSAGE)).toBe(0)
     expect(r.status.at(-1)?.status).toBe("needs-user")
   }, 150000)
+
+  test("review (gate.review): finished work is sent back once to check against the request", async () => {
+    const r = await runScripted({
+      repo: REPO,
+      tony: true,
+      options: { gate: { review: true } },
+      script: [
+        { tool: "read", args: { path: "src/a.ts" } },
+        { tool: "write", args: { path: "src/a.ts", content: "export const add = (a: number, b: number) => b + a\n" } },
+        { text: "Done." },
+        // Only reached when the review sends it back.
+        { tool: "write", args: { path: "test/add-more.test.ts", content: 'import { expect, test } from "bun:test"\nimport { add } from "../src/a.ts"\ntest("negatives", () => expect(add(-1, -2)).toBe(-3))\n' } },
+        { text: "Requirement: add adds. Evidence: test/a.test.ts and test/add-more.test.ts pass." },
+        { text: "Should not be reached." },
+      ],
+    })
+    expect(count(r.log, "check your work against the request")).toBeGreaterThan(0)
+    expect(r.finalText).toContain("Requirement: add adds.")
+    expect(r.status.at(-1)).toMatchObject({ status: "verified", reviewed: true })
+  }, 150000)
 })

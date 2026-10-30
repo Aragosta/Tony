@@ -41,11 +41,13 @@ const results = [
 
 test("summarize", () => {
   const s = summarize(results)
-  expect(s.map((v) => v.variant)).toEqual(["baseline", "tony"])
-  expect(s[0]!.passRate).toBe(0.5)
-  expect(s[0]!.loopRuns).toBe(1)
-  expect(s[1]!.passRate).toBe(1)
-  expect(s[1]!.totalBlocked).toBe(2)
+  // In the order they first appear.
+  expect(s.map((v) => v.variant)).toEqual(["tony", "baseline"])
+  const [tony, baseline] = s
+  expect(baseline!.passRate).toBe(0.5)
+  expect(baseline!.loopRuns).toBe(1)
+  expect(tony!.passRate).toBe(1)
+  expect(tony!.totalBlocked).toBe(2)
 })
 
 const gate = (status: "verified" | "unresolved" | "needs-user", pending: string[] = []) => ({

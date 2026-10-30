@@ -9,7 +9,7 @@ bun packages/eval/src/cli.ts --model ollama/<model> --repeat 3
 | Flag | Default | Meaning |
 |---|---|---|
 | `--model <provider/model>` | required | Passed to `opencode run --model`. The harness never picks a model. |
-| `--variant baseline\|tony\|both` | `both` | Which configs to run. |
+| `--variant name,name` | `baseline,tony` | Which configs to run, by name from `evals/variants.json` (`both` = `baseline,tony`). |
 | `--repeat N` | `1` | Runs per task and variant. Models are noisy; use 3+ before trusting a difference. |
 | `--tasks id,id` | all | Subset of `evals/tasks/`. |
 | `--langfuse` | off | Add Langfuse tracing (below). |
@@ -20,6 +20,11 @@ bun packages/eval/src/cli.ts --model ollama/<model> --repeat 3
 Each run gets a fresh temp git repo with the task's fixture and an `opencode.json` for the variant. The variant config is excluded from git, so the agent sees a clean `git status`. opencode runs with `--standalone`, so runs don't share a background server. Each run also gets its own copy of your global opencode config, minus `plugins`, `agents` and `experimental`. Your providers and models still work, and a globally installed Tony can't leak into the baseline. Tasks run one after another.
 
 **Preflight.** Before the suite, the CLI runs `tool-smoke` with `--variant tony`. It is not part of the suite itself unless `--tasks` names it. That task can only pass if the model really calls `read` and `write`. If it fails, the CLI stops with exit code 3 and prints `preflight failed: the model did not complete a tool call; check context size and chat template (see README, local models)`. This catches a broken local setup (wrong context size, missing `--jinja`) before you spend an hour on a suite that can't pass.
+
+**Variants** (`evals/variants.json`): a name maps to Tony's plugin options, or to `null` for plain opencode. Turn one feature on or off per variant, and keep it only if the eval shows a difference:
+```json
+{ "baseline": null, "tony": {}, "tony-review": { "gate": { "review": true } }, "tony-no-gate": { "gate": { "enabled": false } } }
+```
 
 ## Read the report
 Results go to `evals/results/<timestamp>.json` (every run) and `.md` (printed too). To look at one task's runs in the newest file:
@@ -68,7 +73,7 @@ bun packages/eval/src/diag.ts --model llamacpp/<model> --repeat 3
 | Flag | Default | Meaning |
 |---|---|---|
 | `--model <provider/model>` | required | As above. |
-| `--variant baseline\|tony` | `baseline` | Plain opencode first: find out what the model does on its own. |
+| `--variant name,name` | `baseline` | Names from `evals/variants.json`. Start with plain opencode to see what the model does on its own. |
 | `--repeat N` | `1` | Runs per task. |
 | `--tasks id,id` | all | Subset of the suite. |
 | `--suite <dir>` | `evals/diag` | Any folder of tasks, `evals/tasks` too. |

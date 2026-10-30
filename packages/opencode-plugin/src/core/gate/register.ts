@@ -2,7 +2,7 @@ import type { Host, IdleEvent } from "../../host.ts"
 import type { GateOptions } from "../../options.ts"
 import type { Exec } from "../verify/exec.ts"
 import { ChangeTracker } from "./changes.ts"
-import { decide, type CheckRun } from "./decide.ts"
+import { decide, REVIEW_KEY, type CheckRun } from "./decide.ts"
 import { writeStatus } from "./status.ts"
 
 export interface GateDeps {
@@ -40,7 +40,8 @@ async function runChecks(exec: Exec, commands: readonly string[], dir: string, b
 
 /**
  * Completion gate: when a root session would go idle after changing files, run the project's checks and send the
- * agent back with the output if they fail. Bounded per user prompt; a failure inside the gate lets the agent stop.
+ * agent back with the output if they fail; with `review`, also once to check the finished work against the request.
+ * Bounded per user prompt; a failure inside the gate lets the agent stop.
  */
 export async function registerGate(host: Host, opts: GateOptions, deps: GateDeps): Promise<void> {
   if (!opts.enabled) return
@@ -79,8 +80,12 @@ export async function registerGate(host: Host, opts: GateOptions, deps: GateDeps
 
     const messages = await host.transcript(e.sessionID)
     let start = 0
+    let request = ""
     messages.forEach((m, i) => {
-      if (m.type === "user") start = i + 1
+      if (m.type === "user") {
+        start = i + 1
+        request = m.text
+      }
     })
     let finalText = ""
     for (const m of messages.slice(start)) {
@@ -103,6 +108,8 @@ export async function registerGate(host: Host, opts: GateOptions, deps: GateDeps
       rounds: st.rounds,
       seen: st.seen,
       maxRounds: opts.maxRounds,
+      review: opts.review,
+      request,
     })
     if (decision.kind === "continue") {
       st.rounds++
@@ -116,6 +123,7 @@ export async function registerGate(host: Host, opts: GateOptions, deps: GateDeps
       rounds: st.rounds,
       checks: st.checks.map((c) => ({ command: c.command, ok: c.ok, ...(c.skipped ? { skipped: true } : {}) })),
       pending: decision.pending,
+      ...(st.seen.has(REVIEW_KEY) ? { reviewed: true } : {}),
     })
   }
 

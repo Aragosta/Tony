@@ -35,12 +35,12 @@ export const PREFLIGHT_TASK = "tool-smoke"
 export const PREFLIGHT_FAILED =
   "preflight failed: the model did not complete a tool call; check context size and chat template (see README, local models)"
 
-const VARIANTS: readonly Variant[] = ["baseline", "tony"]
-
 const isErrorRun = (r: RunResult) => r.metrics.errors.length > 0 || (r.exitCode !== null && r.exitCode !== 0)
 
 export function summarize(results: readonly RunResult[]): VariantSummary[] {
-  return VARIANTS.flatMap((variant) => {
+  // In the order they first appear, so the table follows the order of --variant.
+  const variants = [...new Set(results.map((r) => r.variant))]
+  return variants.flatMap((variant) => {
     const runs = results.filter((r) => r.variant === variant)
     if (runs.length === 0) return []
     const sum = (f: (r: RunResult) => number) => runs.reduce((a, r) => a + f(r), 0)
