@@ -252,7 +252,10 @@ export function diagnose(t: Timeline, ctx: DiagContext): Diagnosis {
     if (!readAt.has(f) && !editedAt.has(f)) add("key-file-missed", ctx.passed ? "warn" : "bad", `never opened ${f}, where the fix belongs`)
     else if (!editedAt.has(f) && !ctx.passed) add("key-file-not-changed", "bad", `read ${f} at step ${readAt.get(f)} but did not change it`, readAt.get(f))
   }
-  const protectedHits = ctx.changedFiles.filter((f) => (ctx.hints.protect ?? []).some((p) => f === p || f.startsWith(p.endsWith("/") ? p : p + "/")))
+  // Only files that were there at the start: adding a new test is allowed (and what the review asks for).
+  const protectedHits = ctx.changedFiles.filter(
+    (f) => repo.includes(f) && (ctx.hints.protect ?? []).some((p) => f === p || f.startsWith(p.endsWith("/") ? p : p + "/")),
+  )
   if (protectedHits.length > 0) add("protected-changed", "bad", `changed protected files: ${protectedHits.join(", ")}`)
 
   // Serial reads that could have been one parallel turn.

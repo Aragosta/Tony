@@ -82,7 +82,7 @@ bun packages/eval/src/diag.ts --model llamacpp/<model> --repeat 3
 | `--keep` | off | Keep every workspace (failed runs are always kept). |
 | `--replay <dir>` | | Rebuild all pages in a results folder from the saved events, after changing the analysis. No model needed. |
 
-The review A/B (`tony` against `tony-review`, every task, 3 runs each, at most 10 minutes per run):
+The review A/B: `tony` against `tony-review` on the two tasks the review targets (`async-pool`, `stale-cache`) plus one it must not slow down (`deep-rounding`), 2 runs each, 12 runs in all, at most 10 minutes per run:
 ```bash
 bun run diag:review
 ```

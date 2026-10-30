@@ -115,3 +115,9 @@ test("pages render", () => {
   expect(summary).toContain("[1](t.baseline.1.md)")
   expect(summary).toContain("`edit-no-match`")
 })
+
+test("a new test file is not a protected change; an edited one is", () => {
+  const t = timeline(step(1, [call("read", { path: "src/a.ts" })]), step(2, [], "Done."))
+  expect(kinds(t, { changedFiles: ["test/new-rules.test.ts"] })).not.toContain("protected-changed")
+  expect(kinds(t, { changedFiles: ["test/a.test.ts"] })).toContain("protected-changed")
+})

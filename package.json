@@ -8,6 +8,6 @@
   "scripts": {
     "test": "bun test",
     "typecheck": "bun run --filter '*' typecheck",
-    "diag:review": "bun packages/eval/src/diag.ts --model llamacpp/local --variant tony,tony-review --repeat 3"
+    "diag:review": "bun packages/eval/src/diag.ts --model llamacpp/local --variant tony,tony-review --tasks async-pool,stale-cache,deep-rounding --repeat 2"
   }
 }
