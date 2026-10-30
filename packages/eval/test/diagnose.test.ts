@@ -121,3 +121,11 @@ test("a new test file is not a protected change; an edited one is", () => {
   expect(kinds(t, { changedFiles: ["test/new-rules.test.ts"] })).not.toContain("protected-changed")
   expect(kinds(t, { changedFiles: ["test/a.test.ts"] })).toContain("protected-changed")
 })
+
+test("a timeout long after the last event is a stall", () => {
+  const t = { ...timeline(step(1, [call("read", { path: "src/a.ts" })])), startedAt: 1_000, endedAt: 101_000 }
+  const d = diagnose(t, ctx({ passed: false, timedOut: true, durationMs: 300_000 }))
+  expect(d.findings.find((f) => f.kind === "stalled")!.detail).toContain("last 200 s")
+  expect(d.wrongTurn?.kind).toBe("stalled")
+  expect(diagnose(t, ctx({ passed: false, timedOut: true, durationMs: 120_000 })).findings.map((f) => f.kind)).not.toContain("stalled")
+})

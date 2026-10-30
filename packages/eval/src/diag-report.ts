@@ -127,14 +127,14 @@ export function summaryPage(rows: readonly SummaryRow[], title: string): string 
 
   out.push(
     "## Runs",
-    "| task | variant | run | result | steps | calls (failed) | thinking | seconds | first wrong turn |",
+    "| task | variant | run | result | steps | calls (failed) | thinking | seconds (wall) | first wrong turn |",
     "|---|---|---|---|---|---|---|---|---|",
   )
   for (const r of rows) {
     const s = r.d.stats
     const turn = r.d.wrongTurn ? `${r.d.wrongTurn.step ? `step ${r.d.wrongTurn.step}: ` : ""}\`${r.d.wrongTurn.kind}\` ${cell(oneLine(r.d.wrongTurn.detail, 80))}` : "-"
     out.push(
-      `| ${r.meta.taskId} | ${r.meta.variant} | [${r.meta.run}](${r.page}) | ${OUTCOME_LABEL[r.d.outcome]} | ${s.steps} | ${s.calls} (${s.failedCalls}) | ${k(s.reasoningChars)} | ${s.seconds.toFixed(0)} | ${turn} |`,
+      `| ${r.meta.taskId} | ${r.meta.variant} | [${r.meta.run}](${r.page}) | ${OUTCOME_LABEL[r.d.outcome]} | ${s.steps} | ${s.calls} (${s.failedCalls}) | ${k(s.reasoningChars)} | ${(r.meta.durationMs / 1000).toFixed(0)} | ${turn} |`,
     )
   }
   out.push("")

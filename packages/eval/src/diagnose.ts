@@ -27,6 +27,8 @@ export interface DiagContext {
   hints: DiagHints
   /** Rounds Tony's gate sent the agent back, when the variant has the gate. */
   gateRounds?: number
+  /** Wall-clock length of the run, when known: a timeout long after the last event means the model went silent. */
+  durationMs?: number
 }
 
 export type Severity = "bad" | "warn" | "info"
@@ -278,6 +280,16 @@ export function diagnose(t: Timeline, ctx: DiagContext): Diagnosis {
     else if (admits) add("honest-failure", "info", "said the work is not done", last?.index)
   }
   if (ctx.timedOut) add("timeout", "bad", "ran out of time")
+  // The event span runs from the first event to the last; the rest of the run produced nothing.
+  const span = t.startedAt && t.endedAt ? (t.endedAt - t.startedAt) / 1000 : 0
+  if (ctx.timedOut && ctx.durationMs !== undefined && ctx.durationMs / 1000 - span > STALL_SECONDS) {
+    add(
+      "stalled",
+      "bad",
+      `nothing came from the model for the last ${Math.round(ctx.durationMs / 1000 - span)} s before the timeout: the server hung or a step never ended (check the llama-server log; --reasoning-budget can hang some builds)`,
+      steps.at(-1)?.index,
+    )
+  }
   for (const e of t.errors) add("infra-error", "bad", `opencode error: ${firstLine(e)}`)
   if (!ctx.passed && ctx.failedCheck) {
     const failing = ctx.checkOutput.split("\n").filter((l) => /^\s*\(fail\)/.test(l)).map((l) => l.trim().replace(/^\(fail\)\s*/, "").replace(/\s*\[[\d.]+ms\]$/, ""))
@@ -324,10 +336,14 @@ export function diagnose(t: Timeline, ctx: DiagContext): Diagnosis {
   }
 }
 
+/** Silence before a timeout longer than this is a stall, not a slow step. */
+const STALL_SECONDS = 60
+
 // Findings that explain a failure, most basic first: a broken setup, then not finding or not changing the right code,
 // then not checking the work. Anything else falls back to the earliest bad finding by step.
 const CAUSES = [
   "toolcall-as-text",
+  "stalled",
   "infra-error",
   "timeout",
   "key-file-missed",
