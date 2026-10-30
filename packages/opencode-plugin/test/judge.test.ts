@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import { judgeMessage, judgePrompt, parseVerdict } from "../src/gate/judge.ts"
+import { judgeMessage, judgePrompt, parseVerdict } from "../src/core/gate/judge.ts"
 
 test("prompt lists checks", () => {
   expect(judgePrompt([{ command: "bun test", ok: false, output: "" }])).toContain("- bun test: failed")

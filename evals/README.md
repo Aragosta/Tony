@@ -39,7 +39,7 @@ Summary table:
 - **errors:** runs where opencode reported an error or exited non-zero. Usually infrastructure (a crashed server, a provider error), not the model; check `stderrTail` in the JSON.
 - **cache hit:** cached prompt tokens / all prompt tokens. Higher is cheaper and faster.
 
-The per-task table shows each run: the first **failed check** step, the gate's final status (`verified`, `no-changes`, `no-checks`, `unresolved`, `needs-user`, or `-` without Tony) and its first open reason (**gate pending**). In the JSON, each run also has `metrics.trace` (one line per tool call, `✗` for a failed one), `checkOutput` (output of the failing step) and, for failed runs, the kept `workspace`.
+The per-task table shows each run: the first **failed check** step, the gate's final status (`verified`, `no-changes`, `no-checks`, `unresolved`, `needs-user`, or `-` without Tony) and its first open reason (**gate pending**). The **tier** column is the Tony model tier the run used (`small`, `frontier`). In the JSON, each run also has `metrics.trace` (one line per tool call, `✗` for a failed one), `checkOutput` (output of the failing step) and, for failed runs, the kept `workspace`.
 
 ## Tasks
 | id | What it tests |

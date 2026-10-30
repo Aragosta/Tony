@@ -80,6 +80,7 @@ test("markdown shows the failed check and the gate's open reason", () => {
   ]
   const md = toMarkdown(summarize(rs), rs)
   expect(md).toContain("| answer names the blocker |")
+  expect(md).toContain("| t | tony | - | no |")
   expect(md).toContain('| failure:shell:{"command":"npx tsx test/… +1 |')
 })
 
@@ -98,7 +99,7 @@ test("preflight aborts", async () => {
 test("toMarkdown", () => {
   const md = toMarkdown(summarize(results), results)
   expect(md).toContain("| variant | pass rate | false done | avg steps | s/step | loop runs | blocked | gate rounds | gate miss | gate false alarm | errors | cache hit |")
-  for (const r of results) expect(md).toContain(`| ${r.taskId} | ${r.variant} |`)
+  for (const r of results) expect(md).toContain(`| ${r.taskId} | ${r.variant} | - |`)
 })
 
 test("false done", () => {

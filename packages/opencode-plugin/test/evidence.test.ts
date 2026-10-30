@@ -3,8 +3,8 @@ import { mkdtempSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import type { ToolAfterEvent } from "../src/host.ts"
-import { EvidenceTracker, runsCheck } from "../src/gate/evidence.ts"
-import { normalizeCheck } from "../src/verify/detect.ts"
+import { EvidenceTracker, runsCheck } from "../src/core/gate/evidence.ts"
+import { normalizeCheck } from "../src/core/verify/detect.ts"
 
 const setup = () => ({ t: new EvidenceTracker(), dir: mkdtempSync(join(tmpdir(), "tony-ev-")) })
 const done = (tool: string, input: unknown, extra: Partial<{ content: string; metadata: Record<string, unknown> }> = {}): ToolAfterEvent => ({

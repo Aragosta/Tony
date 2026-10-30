@@ -2,8 +2,8 @@ import { expect, test } from "bun:test"
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { checkAliases, detectChecks } from "../src/verify/detect.ts"
-import { exec } from "../src/verify/exec.ts"
+import { checkAliases, detectChecks } from "../src/core/verify/detect.ts"
+import { exec } from "../src/core/verify/exec.ts"
 
 const dir = (files: Record<string, string> = {}) => {
   const d = mkdtempSync(join(tmpdir(), "tony-verify-"))

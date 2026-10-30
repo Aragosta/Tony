@@ -1,8 +1,9 @@
-import type { Host, IdleEvent } from "../host.ts"
-import type { GateOptions } from "../options.ts"
+import type { Host, IdleEvent } from "../../host.ts"
+import type { GateOptions } from "../../options.ts"
 import type { Exec } from "../verify/exec.ts"
 import { decide, type CheckRun, type GateStatus } from "./decide.ts"
 import { checkAliases } from "../verify/detect.ts"
+import type { TierId } from "../../tiers/types.ts"
 import type { EvidenceTracker } from "./evidence.ts"
 import { judgeMessage, judgePrompt, parseVerdict } from "./judge.ts"
 import { writeStatus, type StatusRecord } from "./status.ts"
@@ -11,6 +12,8 @@ export interface GateDeps {
   exec: Exec
   detect: (dir: string) => string[]
   tracker: EvidenceTracker
+  /** Tier per session, as the prompt module recorded it. */
+  tiers?: ReadonlyMap<string, TierId>
 }
 
 interface GateState {
@@ -155,6 +158,7 @@ export async function registerGate(host: Host, opts: GateOptions, deps: GateDeps
       checks: st.checks.map((c) => ({ command: c.command, ok: c.ok, ...(c.skipped ? { skipped: true } : {}), ...(c.reused ? { reused: true } : {}) })),
       pending,
       testsChanged: evidence.testTampering,
+      ...(deps.tiers?.get(e.sessionID) ? { tier: deps.tiers.get(e.sessionID)! } : {}),
       ...(judge ? { judge } : {}),
     })
   }

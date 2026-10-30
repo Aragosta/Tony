@@ -2,7 +2,7 @@ import { expect, test } from "bun:test"
 import { mkdtempSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { changedMessage, notReadMessage, registerEditGuard } from "../src/edit/guard.ts"
+import { changedMessage, notReadMessage, registerEditGuard } from "../src/core/edit/guard.ts"
 import { createFakeHost } from "./fake-host.ts"
 
 async function setup(enabled = true) {

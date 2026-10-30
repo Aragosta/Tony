@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto"
-import type { Host } from "../host.ts"
-import type { LoopGuardOptions } from "../options.ts"
+import type { Host } from "../../host.ts"
+import type { LoopGuardOptions } from "../../options.ts"
 import { LoopDetector } from "./detector.ts"
-import { resultText } from "../tool-result.ts"
+import { resultText } from "../../tool-result.ts"
 import { fingerprint } from "./fingerprint.ts"
 
 export const RESULT_EXCERPT_CHARS = 1500

@@ -2,9 +2,9 @@ import { expect, test } from "bun:test"
 import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { newProblems, normalize } from "../src/diagnostics/diff.ts"
-import { registerDiagnostics } from "../src/diagnostics/register.ts"
-import type { Exec, ExecResult } from "../src/verify/exec.ts"
+import { newProblems, normalize } from "../src/core/diagnostics/diff.ts"
+import { registerDiagnostics } from "../src/core/diagnostics/register.ts"
+import type { Exec, ExecResult } from "../src/core/verify/exec.ts"
 import { createFakeHost } from "./fake-host.ts"
 
 test("normalizes positions", () => {

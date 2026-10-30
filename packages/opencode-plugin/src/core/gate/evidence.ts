@@ -1,10 +1,10 @@
 import { execFile } from "node:child_process"
 import { existsSync, readFileSync } from "node:fs"
 import { isAbsolute, relative, resolve } from "node:path"
-import type { ToolAfterEvent, ToolBeforeEvent } from "../host.ts"
+import type { ToolAfterEvent, ToolBeforeEvent } from "../../host.ts"
 import { fingerprint } from "../loop/fingerprint.ts"
-import { resultText } from "../tool-result.ts"
-import { toPosix } from "../platform.ts"
+import { resultText } from "../../tool-result.ts"
+import { toPosix } from "../../platform.ts"
 import { normalizeCheck } from "../verify/detect.ts"
 import { isTestFile, patchFiles, tamperFindings } from "./tamper.ts"
 

@@ -1,9 +1,9 @@
 import { existsSync } from "node:fs"
 import { extname, isAbsolute, join, relative, resolve } from "node:path"
 import { patchFiles } from "../gate/tamper.ts"
-import type { Host } from "../host.ts"
-import type { DiagnosticChecker, DiagnosticsOptions } from "../options.ts"
-import { onPath, shellQuote, toPosix } from "../platform.ts"
+import type { Host } from "../../host.ts"
+import type { DiagnosticChecker, DiagnosticsOptions } from "../../options.ts"
+import { onPath, shellQuote, toPosix } from "../../platform.ts"
 import { exec, type Exec } from "../verify/exec.ts"
 import { formatDiagnostics, newProblems, problemLines } from "./diff.ts"
 

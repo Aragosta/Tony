@@ -1,10 +1,10 @@
 import { createHash } from "node:crypto"
 import { existsSync, readFileSync, statSync } from "node:fs"
 import { isAbsolute, relative, resolve } from "node:path"
-import type { Host, ToolBeforeEvent } from "../host.ts"
-import type { EditGuardOptions } from "../options.ts"
+import type { Host, ToolBeforeEvent } from "../../host.ts"
+import type { EditGuardOptions } from "../../options.ts"
 import { patchFiles } from "../gate/tamper.ts"
-import { toPosix } from "../platform.ts"
+import { toPosix } from "../../platform.ts"
 
 export function notReadMessage(path: string): string {
   return `Edit refused: read ${path} before editing it, so the change is based on its current content.`

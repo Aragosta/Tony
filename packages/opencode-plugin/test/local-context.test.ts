@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import { planContextCaps, registerLocalContext } from "../src/local/context.ts"
+import { planContextCaps, registerLocalContext } from "../src/tiers/small/context.ts"
 import { DEFAULTS } from "../src/options.ts"
 import { createFakeHost } from "./fake-host.ts"
 

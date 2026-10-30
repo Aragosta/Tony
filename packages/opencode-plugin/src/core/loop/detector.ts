@@ -1,4 +1,4 @@
-import type { LoopGuardOptions } from "../options.ts"
+import type { LoopGuardOptions } from "../../options.ts"
 
 export type LoopVerdict = { kind: "ok" } | { kind: "block"; count: number } | { kind: "stop"; count: number }
 

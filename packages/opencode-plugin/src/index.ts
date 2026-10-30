@@ -46,6 +46,7 @@ export function createHost(ctx: PluginContext): Host {
     async onContext(cb) {
       await ctx.session.hook("context", (e) =>
         cb({
+          sessionID: e.sessionID,
           agent: e.agent,
           model: { providerID: e.model.providerID, id: e.model.id },
           // Same array object, so replacing system[0] edits the real request.

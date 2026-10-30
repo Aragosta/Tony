@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import { isTestFile, patchFiles, tamperFindings } from "../src/gate/tamper.ts"
+import { isTestFile, patchFiles, tamperFindings } from "../src/core/gate/tamper.ts"
 
 test("detects test files", () => {
   expect(isTestFile("src/a.test.ts")).toBe(true)

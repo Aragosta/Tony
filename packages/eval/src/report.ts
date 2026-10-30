@@ -100,11 +100,11 @@ export function toMarkdown(summaries: readonly VariantSummary[], results: readon
         `| ${s.variant} | ${pct(s.passRate)} (${s.passed}/${s.runs}) | ${s.falseDone} | ${fixed(s.avgSteps)} | ${fixed(s.secondsPerStep)} | ${s.loopRuns} | ${s.totalBlocked} | ${fixed(s.avgGateRounds)} | ${s.gateMisses} | ${s.gateFalseAlarms} | ${s.errorRuns} | ${pct(s.cacheHitRate)} |`,
     ),
     "",
-    "| task | variant | passed | failed check | steps | tool calls | blocked | max streak | gate | gate pending | errors | seconds |",
-    "|---|---|---|---|---|---|---|---|---|---|---|---|",
+    "| task | variant | tier | passed | failed check | steps | tool calls | blocked | max streak | gate | gate pending | errors | seconds |",
+    "|---|---|---|---|---|---|---|---|---|---|---|---|---|",
     ...results.map(
       (r) =>
-        `| ${r.taskId} | ${r.variant} | ${r.passed ? "yes" : r.timedOut ? "timeout" : "no"} | ${r.failedCheck ?? "-"} | ${r.metrics.steps} | ${r.metrics.toolCalls} | ${r.metrics.blocked} | ${r.metrics.maxIdenticalStreak} | ${r.gate?.status ?? "-"} | ${pendingCell(r.gate?.pending)} | ${r.metrics.errors.length} | ${fixed(r.durationMs / 1000)} |`,
+        `| ${r.taskId} | ${r.variant} | ${r.gate?.tier ?? "-"} | ${r.passed ? "yes" : r.timedOut ? "timeout" : "no"} | ${r.failedCheck ?? "-"} | ${r.metrics.steps} | ${r.metrics.toolCalls} | ${r.metrics.blocked} | ${r.metrics.maxIdenticalStreak} | ${r.gate?.status ?? "-"} | ${pendingCell(r.gate?.pending)} | ${r.metrics.errors.length} | ${fixed(r.durationMs / 1000)} |`,
     ),
   ]
   return lines.join("\n") + "\n"

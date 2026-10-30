@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import { LoopDetector } from "../src/loop/detector.ts"
+import { LoopDetector } from "../src/core/loop/detector.ts"
 
 const make = () => new LoopDetector({ blockAt: 3, stopAt: 5 })
 

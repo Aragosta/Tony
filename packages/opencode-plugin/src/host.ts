@@ -41,6 +41,7 @@ export interface PromptEvent {
 }
 
 export interface ContextEvent {
+  sessionID: string
   agent: string
   model: { providerID: string; id: string }
   system: Array<{ text: string }>

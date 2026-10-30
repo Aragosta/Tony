@@ -1,3 +1,4 @@
+import { TIER_IDS, type TierId } from "./tiers/index.ts"
 export interface LoopGuardOptions {
   enabled: boolean
   blockAt: number
@@ -43,6 +44,8 @@ export interface GateOptions {
 }
 
 export interface TonyOptions {
+  /** Model-specific tier (src/tiers): `auto` picks by provider. */
+  tier: "auto" | TierId
   loopGuard: LoopGuardOptions
   prompt: PromptOptions
   local: LocalOptions
@@ -65,6 +68,7 @@ export function defaultCheckers(platform: NodeJS.Platform = process.platform): D
 }
 
 export const DEFAULTS: TonyOptions = {
+  tier: "auto",
   loopGuard: {
     enabled: true,
     blockAt: 3,
@@ -94,6 +98,7 @@ export function parseOptions(raw: unknown): TonyOptions {
   if (raw === undefined || raw === null) raw = {}
   if (!isObject(raw)) throw new Error("tony options must be an object")
   const opts: TonyOptions = {
+    tier: raw.tier === undefined ? DEFAULTS.tier : (raw.tier as TonyOptions["tier"]),
     loopGuard: section(DEFAULTS.loopGuard, raw.loopGuard),
     prompt: section(DEFAULTS.prompt, raw.prompt),
     local: section(DEFAULTS.local, raw.local),
@@ -101,6 +106,7 @@ export function parseOptions(raw: unknown): TonyOptions {
     diagnostics: section(DEFAULTS.diagnostics, raw.diagnostics),
     gate: section(DEFAULTS.gate, raw.gate),
   }
+  if (opts.tier !== "auto" && !TIER_IDS.includes(opts.tier)) throw new Error(`tier must be auto or one of: ${TIER_IDS.join(", ")}`)
   if (opts.loopGuard.blockAt < 2) throw new Error("blockAt must be >= 2")
   if (opts.loopGuard.stopAt <= opts.loopGuard.blockAt) throw new Error("stopAt must be > blockAt")
   if (opts.local.contextLimit < 32768) throw new Error("contextLimit must be >= 32768")

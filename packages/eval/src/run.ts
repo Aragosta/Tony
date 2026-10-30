@@ -17,6 +17,8 @@ export interface GateRecord {
   pending: string[]
   testsChanged: string[]
   judge?: "done" | "continue" | "blocked" | "invalid"
+  /** Tony's model tier for the session (`small`, `frontier`). */
+  tier?: string
 }
 
 export interface RunOptions {

@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test"
-import type { TurnEvidence } from "../src/gate/evidence.ts"
-import { announcesAction, decide, type GateInput } from "../src/gate/decide.ts"
-import { checksSection } from "../src/gate/text.ts"
+import type { TurnEvidence } from "../src/core/gate/evidence.ts"
+import { announcesAction, decide, type GateInput } from "../src/core/gate/decide.ts"
+import { checksSection } from "../src/core/gate/text.ts"
 
 const evidence = (over: Partial<TurnEvidence> = {}): TurnEvidence => ({
   changedFiles: ["a.ts"],

@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import { fingerprint } from "../src/loop/fingerprint.ts"
+import { fingerprint } from "../src/core/loop/fingerprint.ts"
 
 test("key order does not matter", () => {
   expect(fingerprint("grep", { a: 1, b: 2 })).toBe(fingerprint("grep", { b: 2, a: 1 }))

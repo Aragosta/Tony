@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import { registerLoopGuard, RESULT_EXCERPT_CHARS } from "../src/loop/guard.ts"
+import { registerLoopGuard, RESULT_EXCERPT_CHARS } from "../src/core/loop/guard.ts"
 import { DEFAULTS } from "../src/options.ts"
 import { createFakeHost } from "./fake-host.ts"
 

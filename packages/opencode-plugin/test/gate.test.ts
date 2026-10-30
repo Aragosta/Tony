@@ -2,11 +2,12 @@ import { afterEach, beforeEach, expect, test } from "bun:test"
 import { existsSync, mkdtempSync, readFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { EvidenceTracker } from "../src/gate/evidence.ts"
-import { registerGate } from "../src/gate/register.ts"
+import { EvidenceTracker } from "../src/core/gate/evidence.ts"
+import { registerGate } from "../src/core/gate/register.ts"
 import { DEFAULTS, type GateOptions } from "../src/options.ts"
-import type { Exec, ExecResult } from "../src/verify/exec.ts"
+import type { Exec, ExecResult } from "../src/core/verify/exec.ts"
 import { createFakeHost } from "./fake-host.ts"
+import type { TierId } from "../src/tiers/index.ts"
 
 let statusFile = ""
 let savedStatus: string | undefined
@@ -21,7 +22,7 @@ afterEach(() => {
 })
 const statuses = () => (existsSync(statusFile) ? readFileSync(statusFile, "utf8").trim().split("\n").map((l) => JSON.parse(l)) : [])
 
-async function setup(results: Partial<ExecResult>[] = [], opts: Partial<GateOptions> = {}, checks = ["bun test"]) {
+async function setup(results: Partial<ExecResult>[] = [], opts: Partial<GateOptions> = {}, checks = ["bun test"], tiers?: Map<string, TierId>) {
   const f = createFakeHost()
   const dir = mkdtempSync(join(tmpdir(), "tony-gate-"))
   f.sessions.set("s", { directory: dir })
@@ -34,7 +35,7 @@ async function setup(results: Partial<ExecResult>[] = [], opts: Partial<GateOpti
     calls.push(command)
     return { code: 0, output: "", timedOut: false, ...(results.shift() ?? {}) }
   }
-  await registerGate(f.host, { ...DEFAULTS.gate, ...opts }, { exec, detect: () => checks, tracker: new EvidenceTracker() })
+  await registerGate(f.host, { ...DEFAULTS.gate, ...opts }, { exec, detect: () => checks, tracker: new EvidenceTracker(), ...(tiers ? { tiers } : {}) })
   return { f, calls }
 }
 const edit = (path = "a.ts") => ({ tool: "edit", sessionID: "s", input: { path }, status: "completed" as const, result: {} })
@@ -56,6 +57,13 @@ test("failing checks send the agent back once", async () => {
   await f.idle("s")
   expect(f.continued).toHaveLength(1)
   expect(statuses().at(-1).status).toBe("unresolved")
+})
+
+test("the status record names the session's tier", async () => {
+  const { f } = await setup([{ code: 0 }], {}, ["bun test"], new Map([["s", "small"]]))
+  await f.after(edit())
+  await f.idle("s")
+  expect(statuses().at(-1).tier).toBe("small")
 })
 
 test("verified when checks pass", async () => {

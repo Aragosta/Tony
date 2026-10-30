@@ -1,6 +1,6 @@
-import type { ContextCap, Host, ModelEntry } from "../host.ts"
-import type { LocalOptions } from "../options.ts"
-import { isLocal } from "../prompt/select.ts"
+import type { ContextCap, Host, ModelEntry } from "../../host.ts"
+import type { LocalOptions } from "../../options.ts"
+import { isLocal } from "./match.ts"
 
 /**
  * Local servers run with a fixed window (llama-server -c, OLLAMA_CONTEXT_LENGTH), but opencode may assume the

@@ -9,6 +9,8 @@ export interface StatusRecord {
   pending: string[]
   testsChanged: string[]
   judge?: "done" | "continue" | "blocked" | "invalid"
+  /** The model tier the session ran with (src/tiers). */
+  tier?: string
 }
 
 /** Appends one JSON line to $TONY_STATUS_FILE when it is set (the eval sets it). Never throws. */

@@ -1,5 +1,5 @@
-import type { LocalOptions } from "../options.ts"
-import { BASE, LOCAL, PARALLEL } from "./text.ts"
+import type { Tier } from "../../tiers/types.ts"
+import { BASE } from "./text.ts"
 
 const GUIDANCE: ReadonlyArray<[tool: string, line: string]> = [
   ["shell", "- Prefer read, grep, glob and edit over shell equivalents; use `shell` for builds, tests, git and other commands."],
@@ -14,15 +14,10 @@ export function toolGuidance(tools: readonly string[]): string[] {
   return GUIDANCE.filter(([tool]) => present.has(tool)).map(([, line]) => line)
 }
 
-export function isLocal(providerID: string, local: LocalOptions): boolean {
-  const id = providerID.toLowerCase()
-  return local.providers.some((p) => p.toLowerCase() === id)
-}
-
-export function selectPrompt(model: { providerID: string; id: string }, tools: readonly string[], local: LocalOptions): string {
+/** The core prompt every model gets (base rules and guidance for its tools), then the tier's own text. */
+export function assemblePrompt(tools: readonly string[], tier: Tier): string {
   let prompt = BASE
   const lines = toolGuidance(tools)
   if (lines.length > 0) prompt += "\n\n# Tools\n" + lines.join("\n")
-  prompt += "\n\n" + (isLocal(model.providerID, local) ? LOCAL : PARALLEL)
-  return prompt
+  return prompt + "\n\n" + tier.prompt
 }
