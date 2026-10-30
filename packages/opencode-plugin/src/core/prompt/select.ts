@@ -3,10 +3,10 @@ import { BASE } from "./text.ts"
 
 const GUIDANCE: ReadonlyArray<[tool: string, line: string]> = [
   ["shell", "- Prefer read, grep, glob and edit over shell equivalents; use `shell` for builds, tests, git and other commands."],
-  ["edit", "- Use `edit` with `oldString` copied exactly from the file as you last read it; re-read the file if it may have changed."],
-  ["todowrite", "- For work with three or more steps, keep a todo list with `todowrite` and mark each item done as soon as it is done."],
-  ["subagent", "- Delegate broad codebase searches to the `explore` subagent with a precise question, so your own context stays small."],
-  ["websearch", "- Check facts that may have changed since your training (library APIs, versions, CLI flags) with `websearch` or `webfetch` before relying on them."],
+  ["edit", "- Use `edit` with `oldString` copied exactly from the file as you last read it."],
+  ["todowrite", "- Use `todowrite` only for tasks with four or more distinct steps across several files. Skip it for a single fix, a rename or a few edits; just do the work."],
+  ["subagent", "- Delegate broad codebase searches to the `explore` subagent with a precise question."],
+  ["websearch", "- Check facts that may have changed since your training (library APIs, versions) with `websearch` or `webfetch`."],
 ]
 
 export function toolGuidance(tools: readonly string[]): string[] {
@@ -25,5 +25,5 @@ export function assemblePrompt(tools: readonly string[], tier: Tier, checks: rea
   const lines = toolGuidance(tools)
   if (lines.length > 0) prompt += "\n\n# Tools\n" + lines.join("\n")
   if (checks.length > 0) prompt += "\n\n" + checksSection(checks)
-  return prompt + "\n\n" + tier.prompt
+  return tier.prompt ? prompt + "\n\n" + tier.prompt : prompt
 }

@@ -20,7 +20,7 @@ export const tamperSection = (findings: readonly string[]) =>
   `You changed existing tests:\n${findings.map((f) => "- " + f).join("\n")}\nIf the user did not ask for this, restore them and fix the code instead. If it was intended, say so in your answer.`
 
 export const fallbackSection = (findings: readonly string[]) =>
-  `You added defaults for settings the environment should provide:\n${findings.map((f) => "- " + f).join("\n")}\nA default like this makes the code run without the real service or credential, which hides the problem. Remove it unless the user asked for it. If the setting is missing, start your answer with \`Blocked:\` and say so.`
+  `These changes make the code succeed without what it needs:\n${findings.map((f) => "- " + f).join("\n")}\nA default value or a removed error check hides a missing service, credential or setting. Undo it unless the user asked for it. If something is missing, start your answer with \`Blocked:\` and say what.`
 
 export const todosSection = (todos: readonly string[]) =>
   `Your todo list has open items:\n${todos.map((t) => "- " + t).join("\n")}\nFinish them, or mark the ones you won't do as cancelled and say why.`

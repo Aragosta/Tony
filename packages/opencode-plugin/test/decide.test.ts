@@ -121,7 +121,7 @@ test("Blocked: does not hide a stubbed test or an added fallback", () => {
   if (f.kind !== "continue") return
   expect(f.message).toContain("default added for missing setting STATUS_URL")
   expect(f.message).toContain("Blocked:")
-  expect(f.description).toBe("Tony: defaults added for missing settings")
+  expect(f.description).toBe("Tony: code made to succeed without its inputs")
 })
 
 test("a reply that mentions being blocked later is not a Blocked: answer", () => {

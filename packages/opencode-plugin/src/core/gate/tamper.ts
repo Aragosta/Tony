@@ -42,9 +42,13 @@ function fallbackNames(text: string): string[] {
   return FALLBACKS.flatMap((re) => [...text.matchAll(re)].map((m) => m[1] ?? m[2]!))
 }
 
-/** Settings that gained a literal default in a source file; `null` content means the file did not exist. */
+// Fewer error exits than before (`if (!url) throw …` → `if (!url) return "ok"`) makes code succeed without its inputs.
+const ERROR_EXITS = /\bthrow\b|\braise\b|\bprocess\.exit\s*\(|\bpanic!\s*\(/g
+
+/** Source changes that make code succeed without what it needs; `null` content means the file did not exist. */
 export function fallbackFindings(path: string, before: string | null, after: string | null): string[] {
   if (after === null) return []
+  const removed = before === null ? 0 : count(ERROR_EXITS, before) - count(ERROR_EXITS, after)
   const had = fallbackNames(before ?? "")
   const added: string[] = []
   for (const name of fallbackNames(after)) {
@@ -52,7 +56,9 @@ export function fallbackFindings(path: string, before: string | null, after: str
     if (i >= 0) had.splice(i, 1)
     else if (!added.includes(name)) added.push(name)
   }
-  return added.map((name) => `${path}: default added for missing setting ${name}`)
+  const findings = added.map((name) => `${path}: default added for missing setting ${name}`)
+  if (removed > 0) findings.push(`${path}: ${removed} error check(s) removed`)
+  return findings
 }
 
 /** Files named in an opencode patch (`*** Add|Update|Delete File: <path>`). */

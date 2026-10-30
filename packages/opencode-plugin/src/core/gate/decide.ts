@@ -74,7 +74,7 @@ function reasons(input: GateInput): Reason[] {
     out.push({ key: `tamper:${evidence.testTampering.join("|")}`, label: "tests changed", section: tamperSection(evidence.testTampering) })
   }
   if (evidence.fallbacks.length > 0) {
-    out.push({ key: `fallback:${evidence.fallbacks.join("|")}`, label: "defaults added for missing settings", section: fallbackSection(evidence.fallbacks) })
+    out.push({ key: `fallback:${evidence.fallbacks.join("|")}`, label: "code made to succeed without its inputs", section: fallbackSection(evidence.fallbacks) })
   }
   if (evidence.openTodos.length > 0 && !blocked) {
     out.push({ key: `todos:${evidence.openTodos.join("|")}`, label: "open todos", section: todosSection(evidence.openTodos) })

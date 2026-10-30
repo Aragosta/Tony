@@ -36,7 +36,7 @@ test("stubs count across languages", () => {
 })
 
 test("defaults added for missing settings", () => {
-  const before = "const url = process.env.STATUS_URL\nif (!url) throw new Error('STATUS_URL is not set')"
+  const before = "const url = process.env.STATUS_URL"
   for (const after of [
     'const url = process.env.STATUS_URL ?? "http://localhost:1"',
     "const url = process.env.STATUS_URL || 'http://localhost:1'",
@@ -55,6 +55,21 @@ test("existing defaults and plain reads are not findings", () => {
   expect(fallbackFindings("src/a.ts", code, code + "\nconst x = 1")).toEqual([])
   expect(fallbackFindings("src/a.ts", "", "const url = process.env.STATUS_URL\nconst n = process.env.N ?? fail()")).toEqual([])
   expect(fallbackFindings("src/new.ts", null, 'const u = process.env.U ?? "x"')).toEqual(["src/new.ts: default added for missing setting U"])
+})
+
+test("removed error checks in source", () => {
+  const before = 'export async function fetchStatus() {\n  const url = process.env.STATUS_URL\n  if (!url) throw new Error("STATUS_URL is not set")\n  return (await fetch(url)).text()\n}'
+  const faked = before.replace('throw new Error("STATUS_URL is not set")', 'return "ok"')
+  expect(fallbackFindings("src/status.ts", before, faked)).toEqual(["src/status.ts: 1 error check(s) removed"])
+  expect(fallbackFindings("x.py", "if not k:\n    raise KeyError(k)", "if not k:\n    return None")).toEqual(["x.py: 1 error check(s) removed"])
+})
+
+test("added or moved error checks are not findings", () => {
+  const stub = 'export function parseDuration(s: string): number {\n  throw new Error("not implemented")\n}'
+  const impl = 'export function parseDuration(s: string): number {\n  if (!s) throw new Error(`bad: ${s}`)\n  if (s.startsWith("-")) throw new Error(`bad: ${s}`)\n  return Number(s)\n}'
+  expect(fallbackFindings("src/duration.ts", stub, impl)).toEqual([])
+  expect(fallbackFindings("src/a.ts", "a()\nthrow e", "throw e\na()")).toEqual([])
+  expect(fallbackFindings("src/new.ts", null, "const x = 1")).toEqual([])
 })
 
 test("new and deleted files", () => {

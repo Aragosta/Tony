@@ -39,12 +39,25 @@ test("the core prompt comes first, the tier's text last", () => {
     const p = assemblePrompt([], tier)
     expect(p.startsWith(BASE)).toBe(true)
     expect(p.endsWith(tier.prompt)).toBe(true)
+    expect(p.endsWith("\n")).toBe(false)
   }
 })
 
-test("parallel read-only calls are suggested to frontier models only", () => {
-  expect(frontier.prompt).toContain("together in one turn")
-  expect(small.prompt).not.toContain("together in one turn")
+test("every tier is asked to batch read-only calls", () => {
+  for (const tier of TIERS) expect(assemblePrompt([], tier)).toContain("together in one turn")
+  expect(small.prompt).not.toContain("one tool call per need")
+})
+
+test("the prompt stays short: every word is prefilled on every step", () => {
+  const all = ["shell", "edit", "todowrite", "subagent", "websearch"]
+  for (const tier of TIERS) {
+    const words = assemblePrompt(all, tier, ["npm run test"]).split(/\s+/).length
+    expect(words).toBeLessThanOrEqual(450)
+  }
+})
+
+test("todos are for long tasks only", () => {
+  expect(toolGuidance(["todowrite"])[0]).toContain("Skip it for a single fix")
 })
 
 test("guidance follows tools", () => {
@@ -60,15 +73,15 @@ test("guidance appears under a heading", () => {
 })
 
 test("the base prompt asks for a check of every part of the request", () => {
-  expect(BASE).toContain("re-read the user's request")
+  expect(BASE).toContain("check that each part of the request is done")
 })
 
 test("the base prompt forbids faking and offers the Blocked: exit", () => {
   expect(BASE).toContain("Never hard-code expected outputs")
-  expect(BASE).toContain("start your final answer with `Blocked:`")
+  expect(BASE).toContain("Start your final answer with `Blocked:`")
 })
 
-test("small models get a verification order and no re-reads after edits", () => {
-  expect(small.prompt).toContain("Verify in this order, then stop")
+test("small models run checks once and don't re-read after edits", () => {
+  expect(small.prompt).toContain("Run the checks once after your last change")
   expect(small.prompt).toContain("Don't re-read a file after a successful edit")
 })

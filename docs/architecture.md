@@ -8,7 +8,7 @@ Tony app      opencode's desktop app at one pinned version + Tony's patches and 
 
 **Brain (`packages/opencode-plugin`).** All of Tony's behaviour lives here, in two layers:
 - **Core (`src/core/`)** helps every model: completion gate and judge, loop guard, edit guard, diagnostics, check detection, and the base prompt.
-- **Tiers (`src/tiers/`)** hold what only one class of models needs: prompt text and model-specific fixes. There are two for now: `small` (local and small models: explicit rules, the local context cap) and `frontier` (hosted frontier models: parallel read-only calls). Their product names are still open; each tier's `label` is the one place to rename it.
+- **Tiers (`src/tiers/`)** hold what only one class of models needs: prompt text and model-specific fixes. There are two for now: `small` (local and small models: explicit rules, the local context cap) and `frontier` (hosted frontier models: no extra text yet). Their product names are still open; each tier's `label` is the one place to rename it.
   - The `tier` option (`auto` by default) picks the tier per request: `auto` takes the first tier whose `matches` accepts the model (`small` for `local.providers`), with `frontier` as the catch-all.
   - The prompt is the core prompt followed by the tier's `prompt`. A tier's `register` adds its patches at startup.
   - To add a tier, create `src/tiers/<id>/index.ts` exporting a `Tier`, add its id to `TierId`, and list it in `TIERS` before `frontier`.

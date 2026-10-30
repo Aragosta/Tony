@@ -178,3 +178,17 @@ Sources read from code: `microsoft/vscode-copilot-chat` @ `5863f5a`; `anthropics
 | Per-turn `<reminderInstructions>` and the todo list placed next to the latest message | Copilot | Next: reminders via `instructions.entry` (roadmap row 12) |
 
 **Structure.** Tony now has a general core (`src/core`) and model tiers (`src/tiers`: `small`, `frontier`). See `docs/architecture.md`.
+
+### Run 2 (2026-10-30, 2 repeats): Tony got slower, and why
+Tony matched baseline at 12/14 passes but took 7.1 steps against 5.3. The gate fired 0.1 rounds per run, so it wasn't the cause. The tool traces point at Tony's own prompt and tools:
+
+| What the trace showed | Cause in Tony | What Claude Code, Copilot and Codex do | Change |
+|---|---|---|---|
+| Fewer calls per turn (about 1.4 vs 1.7) | Small tier: "Make one tool call per need" | All three push independent read-only calls into one turn | Batching is now in the core prompt for every tier |
+| `todowrite` 3× on a three-part task | `experimental.todo` on, with guidance at 3+ steps | Claude Code and Codex skip todos for simple tasks; opencode leaves todo out for non-Claude models | Guidance: only at 4+ steps across several files |
+| `npm run test` 3×, edit→test→edit→test | "Verify in this order: the specific test, then the full checks" | Claude Code runs the project's command; Copilot fixes only new errors, at most 3 rounds | "Run the checks once after your last change" |
+| `if (!url) throw …` became `return "ok"`, and the gate said verified | The fallback detector knew only env defaults | — | A drop in `throw`/`raise`/`process.exit(`/`panic!(` in a source file is a finding |
+
+The prompt went from about 730 words to at most 450 (a test enforces the cap).
+
+Checked in the opencode 2.2.1 binary: it neither refuses edits to unread files nor appends diagnostics to edits. So Tony's edit guard and its diagnostics are not duplicates, and both stay. (opencode 1.x did both.)

@@ -242,3 +242,13 @@ test("a default added for a missing setting in source is a fallback", async () =
   t.after(done("edit", { path: "api.ts" }), dir)
   expect((await t.evidence("s", dir)).fallbacks).toEqual(["api.ts: default added for missing setting STATUS_URL"])
 })
+
+test("replacing a throw in source is a fallback", async () => {
+  const { t, dir } = setup()
+  writeFileSync(join(dir, "api.ts"), 'if (!url) throw new Error("STATUS_URL is not set")\n')
+  const e = { tool: "edit", sessionID: "s", input: { path: "api.ts" } }
+  await t.before(e, dir)
+  writeFileSync(join(dir, "api.ts"), 'if (!url) return "ok"\n')
+  t.after(done("edit", { path: "api.ts" }), dir)
+  expect((await t.evidence("s", dir)).fallbacks).toEqual(["api.ts: 1 error check(s) removed"])
+})
