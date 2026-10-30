@@ -106,3 +106,37 @@ For a local Qwen model at 128k, what matters, in order:
 | Config | step caps, read-only `explore`, background compaction; no `experimental.todo` |
 
 Every later feature comes back only as an option that is off by default, and only after the eval runs it as its own variant.
+
+## Review (2026-10-30, after the cut and the first diagnostic runs)
+Re-checked against the sources (`mods/types/claude-code.d.ts` and CHANGELOG; Copilot `agentIntent.ts`, `toolCallingLoop.ts`).
+
+**Claude Code: holds, with one correction.**
+- Cached prompt sections, context blocks once per conversation (recomputed after compaction or `/clear`): confirmed (`prompt.section`, `prompt.context`).
+- Reminders as attachments, small tool list, deferred tools, hooks → permissions → tool check: confirmed.
+- Compaction: `precompute` (ahead of time) confirmed, and subagents compact their own transcript (own `autoCompactWindow`). **Correction:** "the summary is asked for again if it comes back empty" is not in the types or the CHANGELOG. What is there: a retry after a context overflow, and the skill list sent again after compaction. Dropped.
+- Stop hooks that refuse a stop, `/goal`, `model.fork`, subagents: confirmed.
+
+**Copilot: holds, with one nuance.** Background summarizing starts at 80% and blocks at 95%. **Nuance:** it also switches on inline summarizing when a render reaches 85%. `task_complete` with at most 5 nudges (`MAX_AUTOPILOT_ITERATIONS = 5`) and the edit-tool learning service: confirmed.
+
+**What worked for Tony: two corrections.**
+- The scripted A/B "1/5 → 4/5" counted the tamper and half-done scenarios, which needed rules that are now removed. With the cut-down Tony, the A/B has 3 scenarios: baseline passes 1, Tony passes 2 (hidden-break). The loop scenario fails the task in both, but Tony stops it after 5 calls instead of 41.
+- The check command and `Blocked:` lines each rest on one trace, the same weak evidence as the rules that were removed. They stay because they cost almost nothing (a few words in a cached prompt), but they're unproven until `tony-no-prompt` runs.
+
+**What the first real runs changed.** Ten diagnostic runs on the local Qwen model:
+- **Tool use is not the problem:** no tool calls written as text, no loops, no blind edits, about 1 failed call per run.
+- **The failure is `incomplete-fix`:** in all 6 failed runs, the visible tests were green, the hidden cases failed, and in 5 of them the model claimed success.
+- **What Tony's kept features can do about it:** nothing. The gate only acts on failing checks, and the loop guard never fires.
+
+## `gate.review` compared with the references
+| | Trigger | Who checks | Cost | Bound |
+|---|---|---|---|---|
+| Claude Code Stop hook | Every stop, when the user configures one | Whatever the hook runs; it can keep the turn going with feedback (`additionalContext`) | The hook's own | Not stated in the sources read |
+| Claude Code / opencode `/goal` | Each idle, while a goal is set | A judge call returns a verdict | One judge call per round | opencode: 50 rounds, 3 stalls |
+| Copilot autopilot | The model stops without `task_complete` | Nobody: the model is just nudged | An extra tool, and a round per nudge | 5 nudges |
+| Old Tony judge (removed) | Checks pass | A side call without tools | One call per finished turn | 3 rounds |
+| **`gate.review`** | First finish with changed files and no failing check | **The agent itself, with tools**: list requirements, show evidence, add tests | One round per request; nothing when no files changed | Once per request, inside `maxRounds` |
+
+- **What it shares:** the Stop-hook model, where the harness refuses the first stop. Like the gate, its message is appended at the tail, so the cached prefix stays intact.
+- **How it differs from the judge and `/goal`:** no verdict from a side call. A side call can't run tests, and on a 30B model a verdict is another guess. The agent does the checking itself and must leave evidence: tests and their output.
+- **How it differs from Copilot:** it asks for evidence per requirement, not just "continue".
+- **The risk:** one extra round on every editing request, including ones that were already right. It is close in intent to the judge we removed for never being measured, so it stays off by default until `tony-review` beats `tony` on the diag suite without slowing the tasks it already passes.
