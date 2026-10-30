@@ -12,6 +12,7 @@ bun packages/eval/src/cli.ts --model ollama/<model> --repeat 3
 | `--variant name,name` | `baseline,tony` | Which configs to run, by name from `evals/variants.json` (`both` = `baseline,tony`). |
 | `--repeat N` | `1` | Runs per task and variant. Models are noisy; use 3+ before trusting a difference. |
 | `--tasks id,id` | all | Subset of `evals/tasks/`. |
+| `--timeout <seconds>` | each task's own | Caps every run; a run that hits it is killed and counts as a timeout. |
 | `--langfuse` | off | Add Langfuse tracing (below). |
 | `--keep` | off | Keep every workspace (failed runs are always kept). |
 | `--opencode <bin>` | `opencode` | opencode binary (pinned: `npm i -g @opencode/cli@2.2.1`). |
@@ -77,8 +78,14 @@ bun packages/eval/src/diag.ts --model llamacpp/<model> --repeat 3
 | `--repeat N` | `1` | Runs per task. |
 | `--tasks id,id` | all | Subset of the suite. |
 | `--suite <dir>` | `evals/diag` | Any folder of tasks, `evals/tasks` too. |
+| `--timeout <seconds>` | `600` per task | Caps every run (it can only lower a task's limit). A run that hits it ends as `TIMEOUT`, with its trace kept. |
 | `--keep` | off | Keep every workspace (failed runs are always kept). |
 | `--replay <dir>` | | Rebuild all pages in a results folder from the saved events, after changing the analysis. No model needed. |
+
+The review A/B (`tony` against `tony-review`, every task, 3 runs each, at most 10 minutes per run):
+```bash
+bun run diag:review
+```
 
 opencode runs with `--thinking`, so the model's reasoning (llama.cpp's `reasoning_content`) is in the event stream. Output goes to `evals/diag-results/<timestamp>/`:
 - `README.md`: pass rate per task, one row per run with its **first wrong turn**, a **failure-mode table** (how many failed and passed runs show each finding) and averages for tool use and thinking.

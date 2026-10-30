@@ -1,7 +1,7 @@
 // Diagnostic runs: each task runs through `opencode run --thinking`, and every run gets a page with its whole path from
 // prompt to answer (thinking, text, each tool call and its result), its findings, and a suite summary of failure modes.
 // Usage: bun packages/eval/src/diag.ts --model <provider/model> [--variant name,name] [--repeat N] [--tasks id,id]
-//          [--suite <dir>] [--opencode <bin>] [--keep]
+//          [--suite <dir>] [--timeout <seconds>] [--opencode <bin>] [--keep]
 //        bun packages/eval/src/diag.ts --replay <results dir>   (rebuild every page from the saved events)
 import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs"
 import { join, relative, resolve } from "node:path"
@@ -10,7 +10,7 @@ import { parseArgs } from "node:util"
 import { runPage, summaryPage, OUTCOME_LABEL, type RunMeta, type SummaryRow } from "./diag-report.ts"
 import { diagnose } from "./diagnose.ts"
 import { runTask } from "./run.ts"
-import { loadTasks, type EvalTask } from "./tasks.ts"
+import { capTimeout, loadTasks, parseTimeout, type EvalTask } from "./tasks.ts"
 import { loadVariants, pickVariants } from "./workspace.ts"
 import { buildTimeline } from "./timeline.ts"
 
@@ -20,6 +20,7 @@ const { values } = parseArgs({
     variant: { type: "string", default: "baseline" },
     repeat: { type: "string", default: "1" },
     tasks: { type: "string" },
+    timeout: { type: "string" },
     suite: { type: "string" },
     opencode: { type: "string", default: "opencode" },
     keep: { type: "boolean", default: false },
@@ -101,7 +102,14 @@ if (variants.length === 0 || !Number.isInteger(repeat) || repeat < 1) {
 
 const suite = resolve(values.suite ?? join(tonyHome, "evals/diag"))
 const only = values.tasks?.split(",").map((s) => s.trim())
-const tasks = loadTasks(suite, only)
+let timeout: number | undefined
+try {
+  timeout = parseTimeout(values.timeout)
+} catch (e) {
+  console.error((e as Error).message)
+  process.exit(2)
+}
+const tasks = capTimeout(loadTasks(suite, only), timeout)
 if (tasks.length === 0) {
   console.error(`no tasks in ${suite}${only ? ` matching ${only.join(", ")}` : ""}`)
   process.exit(2)

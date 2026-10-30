@@ -1,12 +1,12 @@
 // Usage: bun packages/eval/src/cli.ts --model <provider/model> [--variant name,name] [--repeat N]
-//          [--tasks id,id] [--langfuse] [--keep] [--opencode <bin>] [--no-preflight]
+//          [--tasks id,id] [--timeout <seconds>] [--langfuse] [--keep] [--opencode <bin>] [--no-preflight]
 import { mkdirSync, writeFileSync } from "node:fs"
 import { join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { parseArgs } from "node:util"
 import { PREFLIGHT_FAILED, PREFLIGHT_TASK, runPreflight, summarize, toMarkdown } from "./report.ts"
 import { runTask, type RunOptions, type RunResult } from "./run.ts"
-import { loadTasks } from "./tasks.ts"
+import { capTimeout, loadTasks, parseTimeout } from "./tasks.ts"
 import { loadVariants, pickVariants } from "./workspace.ts"
 
 const { values } = parseArgs({
@@ -15,6 +15,7 @@ const { values } = parseArgs({
     variant: { type: "string", default: "baseline,tony" },
     repeat: { type: "string", default: "1" },
     tasks: { type: "string" },
+    timeout: { type: "string" },
     langfuse: { type: "boolean", default: false },
     keep: { type: "boolean", default: false },
     opencode: { type: "string", default: "opencode" },
@@ -41,7 +42,14 @@ if (variants.length === 0 || !Number.isInteger(repeat) || repeat < 1) {
 }
 
 const tasksRoot = resolve(process.env.TONY_EVAL_TASKS ?? join(tonyHome, "evals/tasks"))
-const allTasks = loadTasks(tasksRoot)
+let timeout: number | undefined
+try {
+  timeout = parseTimeout(values.timeout)
+} catch (e) {
+  console.error((e as Error).message)
+  process.exit(2)
+}
+const allTasks = capTimeout(loadTasks(tasksRoot), timeout)
 const only = values.tasks?.split(",").map((s) => s.trim())
 // The preflight task already ran once; it joins the suite only when named.
 const tasks = only ? allTasks.filter((t) => only.includes(t.id)) : allTasks.filter((t) => t.id !== PREFLIGHT_TASK)

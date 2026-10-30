@@ -7,7 +7,7 @@
     { "name": "limits.ts is exactly right", "run": "cmp -s \"src/legacy config/limits.ts\" \"$EVAL_TASK_DIR/hidden/expected/src/legacy config/limits.ts\" || { diff \"$EVAL_TASK_DIR/hidden/expected/src/legacy config/limits.ts\" \"src/legacy config/limits.ts\"; exit 1; }" },
     { "name": "no other source file changed", "run": "git diff --quiet HEAD -- src/pricing/format.ts package.json" }
   ],
-  "timeoutSec": 900,
+  "timeoutSec": 600,
   "diag": {
     "skill": "Precise tool use: a 2,400-line file with tabs (past the 2,000-line read limit), an oldString that matches twice, an occurrence only a search or an offset read finds, and a path with a space.",
     "trap": "Editing staffPrice too (the same line twice), missing the SUMMER-21 at line 2,300, rewriting the big file with write and changing its tabs, raising MAX_BATCHES, or failing to quote the path with a space.",

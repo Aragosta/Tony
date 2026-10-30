@@ -5,7 +5,7 @@
     { "name": "visible tests pass", "run": "bun test" },
     { "name": "hidden cases pass", "run": "cp \"$EVAL_TASK_DIR/hidden/prices.hidden.test.ts\" test/zz-hidden.test.ts && bun test test/zz-hidden.test.ts" }
   ],
-  "timeoutSec": 900,
+  "timeoutSec": 600,
   "diag": {
     "skill": "Debugging from a symptom to the root cause, then fixing every occurrence (two cache-invalidation sites, one of them on a path the visible test never touches).",
     "trap": "Fixing only updatePrice (the visible test) and missing the bulk import path; or disabling the cache to make the symptom go away.",

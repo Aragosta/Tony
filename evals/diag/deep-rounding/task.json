@@ -5,7 +5,7 @@
     { "name": "visible tests pass", "run": "bun test" },
     { "name": "hidden money-rule cases pass", "run": "cp \"$EVAL_TASK_DIR/hidden/billing.hidden.test.ts\" test/zz-hidden.test.ts && bun test test/zz-hidden.test.ts" }
   ],
-  "timeoutSec": 900,
+  "timeoutSec": 600,
   "diag": {
     "skill": "Navigating a larger codebase (29 files, a 900-line catalog) along a call chain invoice → tax → lib/money/round, past look-alike code.",
     "trap": "Fixing the deprecated src/legacy/money.ts copy, patching tax.ts for negatives only (refunds stay wrong), or changing lib/math/round.ts, which reports use.",

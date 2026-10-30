@@ -51,3 +51,16 @@ function parseChecks(id: string, check: unknown): CheckStep[] {
   if (Array.isArray(check) && check.length > 0 && check.every(valid)) return check.map(({ name, run }) => ({ name, run }))
   throw new Error(`task ${id}: missing check`)
 }
+
+/** Caps every task's time limit at `seconds` (a run that hits it is killed and counts as a timeout). */
+export function capTimeout(tasks: readonly EvalTask[], seconds: number | undefined): EvalTask[] {
+  return seconds === undefined ? [...tasks] : tasks.map((t) => ({ ...t, timeoutSec: Math.min(t.timeoutSec, seconds) }))
+}
+
+/** Parses `--timeout`: undefined when not given; throws on anything but a positive integer. */
+export function parseTimeout(value: string | undefined): number | undefined {
+  if (value === undefined) return undefined
+  const n = Number(value)
+  if (!Number.isInteger(n) || n < 1) throw new Error("--timeout must be a positive number of seconds")
+  return n
+}

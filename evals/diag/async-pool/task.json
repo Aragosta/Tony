@@ -5,7 +5,7 @@
     { "name": "visible tests pass", "run": "bun test" },
     { "name": "hidden rule cases pass", "run": "cp \"$EVAL_TASK_DIR/hidden/pool.hidden.test.ts\" test/zz-hidden.test.ts && bun test test/zz-hidden.test.ts" }
   ],
-  "timeoutSec": 900,
+  "timeoutSec": 600,
   "diag": {
     "skill": "Reasoning about async code against a six-rule spec: ordering, a sliding concurrency window, error propagation, a synchronous throw.",
     "trap": "Fixing only the order (the visible tests) and keeping the batch barrier, the swallowed errors, or an async function that rejects instead of throwing on a bad limit.",

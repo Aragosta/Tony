@@ -5,7 +5,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { runChecks } from "../src/run.ts"
-import { loadTasks } from "../src/tasks.ts"
+import { capTimeout, loadTasks, parseTimeout } from "../src/tasks.ts"
 import { buildConfig, LANGFUSE_PACKAGE, loadVariants, pickVariants, prepareWorkspace } from "../src/workspace.ts"
 
 const fixturesTasksDir = fileURLToPath(new URL("./fixtures/tasks", import.meta.url))
@@ -72,6 +72,25 @@ describe("buildConfig", () => {
       const c = buildConfig({ variant, tonyHome: repoRoot, langfuse: true, tags: ["tony", "sample"] })
       expect(c.plugins).toContainEqual({ package: LANGFUSE_PACKAGE, options: { tags: ["tony", "sample"] } })
     }
+  })
+})
+
+describe("timeout cap", () => {
+  test("--timeout only lowers a task's limit", () => {
+    const [t] = loadTasks(fixturesTasksDir)
+    expect(capTimeout([{ ...t!, timeoutSec: 900 }], 600)[0]!.timeoutSec).toBe(600)
+    expect(capTimeout([{ ...t!, timeoutSec: 300 }], 600)[0]!.timeoutSec).toBe(300)
+    expect(capTimeout([{ ...t!, timeoutSec: 900 }], undefined)[0]!.timeoutSec).toBe(900)
+  })
+
+  test("--timeout must be a positive integer", () => {
+    expect(parseTimeout(undefined)).toBeUndefined()
+    expect(parseTimeout("600")).toBe(600)
+    for (const bad of ["0", "-5", "1.5", "ten"]) expect(() => parseTimeout(bad)).toThrow("--timeout must be a positive number of seconds")
+  })
+
+  test("every diagnostic task finishes within 10 minutes", () => {
+    for (const t of loadTasks(join(repoRoot, "evals/diag"))) expect(t.timeoutSec).toBeLessThanOrEqual(600)
   })
 })
 

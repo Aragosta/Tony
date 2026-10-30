@@ -5,7 +5,7 @@
     { "name": "visible tests pass", "run": "bun test" },
     { "name": "hidden rule cases pass", "run": "cp \"$EVAL_TASK_DIR/hidden/calc.hidden.test.ts\" test/zz-hidden.test.ts && bun test test/zz-hidden.test.ts" }
   ],
-  "timeoutSec": 1200,
+  "timeoutSec": 600,
   "diag": {
     "skill": "Planning and writing a parser from an 11-rule spec, then checking it against rules the visible tests don't cover.",
     "trap": "Using eval or Function, getting `-2^2` or right-associativity wrong, half-away-from-zero rounding via Math.round, or error positions that are off by one; stopping once the 4 visible tests pass.",
