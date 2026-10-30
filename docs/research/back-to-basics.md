@@ -125,6 +125,7 @@ Re-checked against the sources (`mods/types/claude-code.d.ts` and CHANGELOG; Cop
 **What the first real runs changed.** Ten diagnostic runs on the local Qwen model:
 - **Tool use is not the problem:** no tool calls written as text, no loops, no blind edits, about 1 failed call per run.
 - **The failure is `incomplete-fix`:** in all 6 failed runs, the visible tests were green, the hidden cases failed, and in 5 of them the model claimed success.
+- **Correction:** two of the six were on `stale-cache`, whose hidden cases also tested an off-by-one expiry. That bug doesn't cause the reported symptom and nothing in the request points to it, so the grader was unfair there; it's fixed now. The clear evidence is the four failures on `async-pool` and `calc-spec`.
 - **What Tony's kept features can do about it:** nothing. The gate only acts on failing checks, and the loop guard never fires.
 
 ## `gate.review` compared with the references

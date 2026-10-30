@@ -7,9 +7,9 @@
   ],
   "timeoutSec": 900,
   "diag": {
-    "skill": "Debugging from a symptom to the root cause, then fixing every occurrence (two cache-invalidation sites, plus an off-by-one expiry).",
-    "trap": "Fixing only updatePrice (the visible test), missing the bulk import path and the `<` vs `<=` expiry; or disabling the cache to make the symptom go away.",
-    "keyFiles": ["src/prices.ts", "src/cache.ts"],
+    "skill": "Debugging from a symptom to the root cause, then fixing every occurrence (two cache-invalidation sites, one of them on a path the visible test never touches).",
+    "trap": "Fixing only updatePrice (the visible test) and missing the bulk import path; or disabling the cache to make the symptom go away.",
+    "keyFiles": ["src/prices.ts"],
     "protect": ["test/"]
   }
 }

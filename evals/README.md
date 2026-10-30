@@ -110,7 +110,7 @@ The **first wrong turn** is the most basic cause found: broken setup, then the w
 **The suite (`evals/diag/`).** Five hard tasks. Each has visible tests, hidden grader cases, a reference `solution/` and `diag` hints. `packages/eval/test/diag-tasks.test.ts` checks that every task fails untouched and passes with its solution.
 | id | Tests | Trap |
 |---|---|---|
-| `stale-cache` | Symptom to root cause; fix every occurrence | Fixing only the visible case; missing the bulk path and an off-by-one expiry |
+| `stale-cache` | Symptom to root cause; fix every occurrence | Fixing only the visible case and missing the bulk-import path |
 | `async-pool` | Async reasoning against a 6-rule spec | Keeping the batch barrier or the swallowed errors |
 | `signature-migration` | A refactor across 13 call sites in 6 files | The `...args` forwarding; swapping body and headers |
 | `deep-rounding` | Following a call chain through 29 files with look-alikes | Fixing the deprecated copy, or patching only the visible path |

@@ -10,7 +10,7 @@ export class TtlCache<V> {
   get(key: string): V | undefined {
     const entry = this.entries.get(key)
     if (!entry) return undefined
-    if (entry.expiresAt < this.now()) {
+    if (entry.expiresAt <= this.now()) {
       this.entries.delete(key)
       return undefined
     }

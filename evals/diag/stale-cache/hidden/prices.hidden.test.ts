@@ -1,6 +1,5 @@
 // Hidden from the agent. Copied into the workspace's test/ by the grader.
 import { expect, test } from "bun:test"
-import { TtlCache } from "../src/cache.ts"
 import { PriceService } from "../src/prices.ts"
 import { PriceStore } from "../src/store.ts"
 
@@ -44,25 +43,6 @@ test("updating one product keeps the others cached", async () => {
   await prices.updatePrice("abc-1", 1)
   await prices.getPrice("XY-9")
   expect(store.reads).toBe(1)
-})
-
-test("an entry expires exactly ttlMs after it was set", () => {
-  let t = 0
-  const cache = new TtlCache<number>(100, () => t)
-  cache.set("k", 1)
-  t = 99
-  expect(cache.get("k")).toBe(1)
-  t = 100
-  expect(cache.get("k")).toBeUndefined()
-})
-
-test("prices refresh from the store after five minutes", async () => {
-  let t = 0
-  const { store, prices } = await shop(() => t)
-  await prices.getPrice("ABC-1")
-  await store.write("ABC-1", 2000)
-  t = 5 * 60 * 1000
-  expect(await prices.getPrice("ABC-1")).toBe(2000)
 })
 
 test("invalid prices are still rejected", async () => {
