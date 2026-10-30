@@ -57,10 +57,10 @@ export function capTimeout(tasks: readonly EvalTask[], seconds: number | undefin
   return seconds === undefined ? [...tasks] : tasks.map((t) => ({ ...t, timeoutSec: Math.min(t.timeoutSec, seconds) }))
 }
 
-/** Parses `--timeout`: undefined when not given; throws on anything but a positive integer. */
-export function parseTimeout(value: string | undefined): number | undefined {
+/** Parses a seconds flag (`--timeout`, `--budget`): undefined when not given; throws on anything but a positive integer. */
+export function parseTimeout(value: string | undefined, flag = "--timeout"): number | undefined {
   if (value === undefined) return undefined
   const n = Number(value)
-  if (!Number.isInteger(n) || n < 1) throw new Error("--timeout must be a positive number of seconds")
+  if (!Number.isInteger(n) || n < 1) throw new Error(`${flag} must be a positive number of seconds`)
   return n
 }

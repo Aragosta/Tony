@@ -1,7 +1,7 @@
 // Diagnostic runs: each task runs through `opencode run --thinking`, and every run gets a page with its whole path from
 // prompt to answer (thinking, text, each tool call and its result), its findings, and a suite summary of failure modes.
 // Usage: bun packages/eval/src/diag.ts --model <provider/model> [--variant name,name] [--repeat N] [--tasks id,id]
-//          [--suite <dir>] [--timeout <seconds>] [--opencode <bin>] [--keep]
+//          [--suite <dir>] [--timeout <seconds>] [--budget <seconds>] [--opencode <bin>] [--keep]
 //        bun packages/eval/src/diag.ts --replay <results dir>   (rebuild every page from the saved events)
 import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs"
 import { join, relative, resolve } from "node:path"
@@ -21,12 +21,16 @@ const { values } = parseArgs({
     repeat: { type: "string", default: "1" },
     tasks: { type: "string" },
     timeout: { type: "string" },
+    budget: { type: "string" },
     suite: { type: "string" },
     opencode: { type: "string", default: "opencode" },
     keep: { type: "boolean", default: false },
     replay: { type: "string" },
   },
 })
+
+/** Below this, a run can't do anything useful on a local model. */
+const MIN_RUN_SECONDS = 60
 
 const tonyHome = resolve(process.env.TONY_HOME ?? fileURLToPath(new URL("../../../", import.meta.url)))
 
@@ -103,17 +107,29 @@ if (variants.length === 0 || !Number.isInteger(repeat) || repeat < 1) {
 const suite = resolve(values.suite ?? join(tonyHome, "evals/diag"))
 const only = values.tasks?.split(",").map((s) => s.trim())
 let timeout: number | undefined
+let budget: number | undefined
 try {
   timeout = parseTimeout(values.timeout)
+  budget = parseTimeout(values.budget, "--budget")
 } catch (e) {
   console.error((e as Error).message)
   process.exit(2)
 }
-const tasks = capTimeout(loadTasks(suite, only), timeout)
-if (tasks.length === 0) {
+const loaded = loadTasks(suite, only)
+if (loaded.length === 0) {
   console.error(`no tasks in ${suite}${only ? ` matching ${only.join(", ")}` : ""}`)
   process.exit(2)
 }
+// A total budget is split evenly, so every run (and every variant) gets the same time.
+const runs = loaded.length * variants.length * repeat
+const share = budget === undefined ? undefined : Math.floor(budget / runs)
+if (share !== undefined && share < MIN_RUN_SECONDS) {
+  console.error(`--budget ${budget} gives each of the ${runs} runs ${share}s; at least ${MIN_RUN_SECONDS}s each is needed`)
+  process.exit(2)
+}
+const caps = [timeout, share].filter((n): n is number => n !== undefined)
+const tasks = capTimeout(loaded, caps.length > 0 ? Math.min(...caps) : undefined)
+if (share !== undefined) console.error(`budget ${budget}s: ${runs} runs, at most ${Math.min(...caps)}s each`)
 
 const stamp = new Date().toISOString().replace(/[:.]/g, "-")
 const dir = join(tonyHome, "evals/diag-results", stamp)

@@ -89,6 +89,12 @@ describe("timeout cap", () => {
     for (const bad of ["0", "-5", "1.5", "ten"]) expect(() => parseTimeout(bad)).toThrow("--timeout must be a positive number of seconds")
   })
 
+  test("--budget too small for the runs is refused", () => {
+    const r = spawnSync("bun", [join(repoRoot, "packages/eval/src/diag.ts"), "--model", "x/y", "--variant", "tony,tony-review", "--tasks", "async-pool", "--budget", "100"], { encoding: "utf8" })
+    expect(r.status).toBe(2)
+    expect(r.stderr).toContain("--budget 100 gives each of the 2 runs 50s; at least 60s each is needed")
+  })
+
   test("every diagnostic task finishes within 10 minutes", () => {
     for (const t of loadTasks(join(repoRoot, "evals/diag"))) expect(t.timeoutSec).toBeLessThanOrEqual(600)
   })

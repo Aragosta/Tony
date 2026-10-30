@@ -79,10 +79,11 @@ bun packages/eval/src/diag.ts --model llamacpp/<model> --repeat 3
 | `--tasks id,id` | all | Subset of the suite. |
 | `--suite <dir>` | `evals/diag` | Any folder of tasks, `evals/tasks` too. |
 | `--timeout <seconds>` | `600` per task | Caps every run (it can only lower a task's limit). A run that hits it ends as `TIMEOUT`, with its trace kept. |
+| `--budget <seconds>` | none | Caps the whole command: the time is split evenly over all runs, so every variant gets the same. Refused if that leaves less than 60 s per run. |
 | `--keep` | off | Keep every workspace (failed runs are always kept). |
 | `--replay <dir>` | | Rebuild all pages in a results folder from the saved events, after changing the analysis. No model needed. |
 
-The review A/B: `tony` against `tony-review` on the two tasks the review targets (`async-pool`, `stale-cache`) plus one it must not slow down (`deep-rounding`), 2 runs each, 12 runs in all, at most 10 minutes per run:
+The review check, at most 10 minutes in total: `tony` against `tony-review` on `async-pool`, the task where `incomplete-fix` is clearest, 5 minutes per run:
 ```bash
 bun run diag:review
 ```
